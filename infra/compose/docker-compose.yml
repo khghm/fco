@@ -1,0 +1,80 @@
+# محیط توسعه محلی — Fashion Commerce OS
+# فقط برای توسعه. Production روی Linux با پیکربندی مستقل و اسرار جداگانه.
+#
+# اجرا:  docker compose -f infra/compose/docker-compose.yml up -d
+# توقف:  docker compose -f infra/compose/docker-compose.yml down
+# پاک‌سازی کامل (شامل داده): ... down -v
+
+name: fco
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: fco-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-fco}
+      POSTGRES_USER: ${POSTGRES_USER:-fco}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fco_local_dev_only}
+      TZ: Asia/Tehran
+      PGTZ: UTC
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    command:
+      - "postgres"
+      - "-c"
+      - "timezone=UTC"
+      - "-c"
+      - "log_timezone=UTC"
+      - "-c"
+      - "max_connections=100"
+      - "-c"
+      - "shared_buffers=256MB"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fco} -d ${POSTGRES_DB:-fco}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    container_name: fco-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    container_name: fco-minio
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-fco_local}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-fco_local_dev_only}
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:

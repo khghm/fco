@@ -1,0 +1,47 @@
+# وابستگی‌ها
+node_modules/
+.pnp/
+.pnp.js
+
+# خروجی ساخت
+dist/
+build/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+
+# محیط و اسرار (هیچ مقدار واقعی در مخزن نیست)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# لاگ و فایل موقت
+*.log
+logs/
+tmp/
+temp/
+.cache/
+
+# سیستم‌عامل و ادیتور
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# داده محلی داکر
+infra/compose/data/
+infra/compose/volumes/
+
+# خروجی پشتیبان (هرگز در مخزن)
+backups/
+*.dump
+*.sql.gz
+
+# فایل‌های آپلود/رسانه محلی
+uploads/
+media/local/
