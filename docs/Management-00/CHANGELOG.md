@@ -1,6 +1,6 @@
 # تغییرات (CHANGELOG)
 
-> **وضعیت:** زنده · **نسخه:** v1.5 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۳
+> **وضعیت:** زنده · **نسخه:** v1.6 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۳
 > قالب بر پایه Keep a Changelog، تاریخ‌ها شمسی + ISO. هر تغییر در **رفتار، دامنه یا ساختار اسناد** یک ردیف اینجا دارد.
 > شاهد هر نسخه: `git show --stat <commit>`.
 > **مالک تاریخ تغییرات اسناد و مخزن.**
@@ -10,9 +10,31 @@
 ## [Unreleased]
 
 ### Planned
-- گام ۹: رصد، پشتیبان و آزمون Restore واقعی
 - گام ۱۰: CI پایه با خطای عمدی
-- BR-2: آداپتور پیامک، صفحه Audit و UI مشتری
+- M1: نمایش زنجیره کامل (ورود → Audit → Job → DLQ → Restore)
+- BR-2: آداپتور پیامک، صفحه Audit، UI مشتری، فرایند Worker
+
+---
+
+## [0.10.0] — ۱۴۰۵/۰۹/۰۳ (2026-11-24)
+
+### Added
+- `packages/infrastructure/migrations/0008_ops_monitoring.sql` (+ `.down.sql`) — `sys.job_begin`/`job_finish` (یک اجرا در هر slot)، `sys.purge_expired_sessions` (با grace و دسته محدود)، `sys.run_session_cleanup` (Job ایدم‌پوتنت با ثبت `job_runs`) و `sys.health_report` (عمق/سن صف، DLQ، نشست، کاربران قفل، Jobهای ناموفق) با مجوز `platform.health.read`.
+- `packages/infrastructure/tests/0010_ops_negative.sql` — Job slot، پایان دوباره، اندازه دسته، حذف فقط نشست منقضی، idempotency پاک‌سازی، مجوز و محتوای گزارش سلامت.
+- `scripts/db-backup-restore-drill.sh` — تمرین تکرارپذیر پشتیبان/بازیابی: کلون دیتابیس، داده نمونه، `pg_dump -Fc`، بازیابی در دیتابیس جدا، مقایسه اثر انگشت، و آزمون منفی پشتیبان مخدوش.
+
+### Changed
+- `BACKUP_AND_RECOVERY §7.1` — اولین Drill واقعی ثبت شد (schema 0008، ۳۴ ثانیه روی همین میزبان، اثر انگشت برابر).
+- `DECISION_LOG` D-16، `DATABASE_DESIGN §3.11`، `TEST_STRATEGY §6`، `IMPLEMENTATION_START_PLAN §3/§5.۹/§7`.
+
+### Verified
+- `down all` → `up` از صفر: ۸ Migration؛ `verify` سبز؛ هر پنج مجموعه آزمون سبز.
+- `0010` → `ALL STEP-9 NEGATIVE CASES PASSED`؛ Drill → `PASS restore` و `PASS negative`، `exit 0`، ۳۴ ثانیه.
+- اثبات آزمون: گرانت `DELETE` روی `iam.sessions` به `fco_app` ⇒ `FAIL APP-ROLE` و `exit 3`؛ پس از `revoke` سبز.
+
+### Known gaps
+- فرایند Worker (Node)، Endpoint/متریک پایش و Job پاک‌سازی نشست در زمان‌بند واقعی هنوز نیست.
+- پشتیبان offsite و رمزنگاری منتظر Q-11؛ Drill فعلی روی همان میزبان است و RTO آن Production نیست.
 
 ---
 

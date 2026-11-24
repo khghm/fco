@@ -1,6 +1,6 @@
 # لاگ تصمیم‌ها (Decision Log)
 
-> **وضعیت:** زنده (Living document) · **نسخه:** v1.5 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۳
+> **وضعیت:** زنده (Living document) · **نسخه:** v1.6 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۳
 > هر تصمیمی که «رفتار» را تغییر می‌دهد اینجا ثبت می‌شود: چه تصمیمی، چرا، چه کسی، تا کی معتبر است.
 > تصمیم معماری بزرگ → ADR مستقل در `Architecture-02/ADR/`. تصمیم دامنه/محصول → `product/OPEN_DECISIONS.md`. این سند **فهرست واحد و تاریخ‌دار همه** است.
 > **مالک فهرست واحد تصمیم‌ها و گزینه‌های رد‌شده.** متن هر ADR در `Architecture-02/ADR/`.
@@ -66,6 +66,7 @@
 | D-13 | **Spool OTP فقط محیط توسعه** — کد خام در `sys.otp_spool`، فقط از تابع و فقط با `auth.otp.spool_enabled` (پیش‌فرض خاموش) | تستپذیری OTP بدون سرویس پیامک؛ خطر ذخیره کد خام با یک تنظیم در Production خنثی و در CI گیت می‌شود | ۱۴۰۵/۰۹/۰۳ | پیش از استقرار و در گام ۱۰ (چک‌لیست CI/استقرار)؛ با آداپتور واقعی پیامک در BR-2 |
 | D-14 | **نوشتن Audit و تغییر تنظیم فقط از تابع** (`sys.audit_write`، `sys.setting_set`)؛ INSERT مستقیم اپ روی `sys.audit_log` لغو شد | اعتبارسنجی actor/request_id/دلیل و ثبت Audit اجباری در یک مسیر؛ جلوگیری از تاریخ‌سازی تاریخچه تنظیم | ۱۴۰۵/۰۹/۰۳ | اگر هزینه نوشتن Audit در بار واقعی مشکل شد (گام ۸/۹) |
 | D-15 | **تحویل Outbox با lease و ایدم‌پوتنسی `event_id`** — `sys.outbox_claim` قفل زمانی می‌دهد و `attempts` همان‌جا +۱ می‌شود؛ DLQ پس از `outbox.max_attempts` | دو Worker نباید رویداد مشترک بگیرند؛ تحویل at-least-once با اثر یک‌بار | ۱۴۰۵/۰۹/۰۳ | اگر عمق/سن صف از بودجه گذشت → بازبینی ADR-008 |
+| D-16 | **تمرین بازیابی از کلون دیتابیس با داده نمونه + آزمون منفی پشتیبان مخدوش** (`scripts/db-backup-restore-drill.sh`) | برابری اثر انگشت قابل‌اثبات می‌شود؛ «بازیابی خالی» و پشتیبان خراب لو می‌رود؛ دیتابیس کاری آلوده نمی‌شود | ۱۴۰۵/۰۹/۰۳ | ماهانه؛ پیش از Production با offsite و رمزنگاری (Q-11) |
 
 ---
 
@@ -107,6 +108,7 @@
 | Q-06 | `BUSINESS_WORKFLOWS` (WF پرداخت/حمل)، `API_SPECIFICATION` (Webhook)، `SECURITY_ARCHITECTURE` (امضا/بازپخش) |
 | Q-11 | `DEPLOYMENT_GUIDE`، `BACKUP_AND_RECOVERY`، `SECURITY_ARCHITECTURE` (شبکه/دسترسی) |
 | ADR-007 | `Architecture-02/ADR/ADR-007-auth-session-strategy.md`، `SECURITY_ARCHITECTURE §2/§13`، `DATABASE_DESIGN §3.1`، `packages/infrastructure/migrations/0002_identity_and_authorization.sql`، `packages/infrastructure/tests/0005_identity_negative.sql` |
+| D-16 | `scripts/db-backup-restore-drill.sh`، `BACKUP_AND_RECOVERY §7.1`، `IMPLEMENTATION_START_PLAN §5.۹` |
 | D-15 | `packages/infrastructure/migrations/0007_outbox_queue.sql`، `packages/infrastructure/tests/0009_outbox_negative.sql`، `DATABASE_DESIGN §3.11`، `IMPLEMENTATION_START_PLAN §5.۸` |
 | D-14 | `packages/infrastructure/migrations/0005_audit_and_settings.sql`، `packages/infrastructure/tests/0008_audit_settings_negative.sql`، `DATABASE_DESIGN §3.11`، `IMPLEMENTATION_START_PLAN §5.۷` |
 | D-13 | `packages/infrastructure/migrations/0004_otp_customer.sql` (`sys.otp_spool`)، `packages/infrastructure/tests/0007_otp_negative.sql`، `SECURITY_ARCHITECTURE §2`، `IMPLEMENTATION_START_PLAN §5.۶` |

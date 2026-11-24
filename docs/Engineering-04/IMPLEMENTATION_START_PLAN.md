@@ -1,6 +1,6 @@
 # برنامه شروع پیاده‌سازی — BR-1 گام‌به‌گام
 
-> **وضعیت:** تأییدشده · **نسخه:** v1.5 · **تاریخ:** ۱۴۰۵/۰۹/۰۳
+> **وضعیت:** تأییدشده · **نسخه:** v1.6 · **تاریخ:** ۱۴۰۵/۰۹/۰۳
 > **خروجی ۱۰ از ۱۰** — وضعیت اجرا در انتهای همین سند ثبت می‌شود.
 > **مالک گام‌های BR-1 و تنها محل ثبت «انجام شد» با شاهد واقعی.**
 
@@ -41,7 +41,7 @@
 | ۶ | OTP مشتری (توسعه: Spool) | انقضا/نرخ/ضد Brute Force | ✅ `T-SEC-12` + ۱۲ سناریوی منفی؛ Spool با پیش‌فرض خاموش (D-13، §5.۶) |
 | ۷ | Audit و تنظیمات نسخه‌دار | رکورد قابل‌جست‌وجو + مجوز تغییر | ✅ `T-PLT-04/05` + ۱۷ سناریوی منفی؛ فقط مسیر تابع (§5.۷) |
 | ۸ | Outbox/Queue Port/Worker/DLQ | اجرای دوبار بدون اثر تکراری | ✅ `T-PLT-01/02` + lease/برای تست؛ مسیر DLQ (§5.۸) |
-| ۹ | رصد و پشتیبان + آزمون Restore | بازیابی مستند روی محیط جدا | ⏳ |
+| ۹ | رصد و پشتیبان + آزمون Restore | بازیابی مستند روی محیط جدا | ✅ `T-DR-01` + Job پاک‌سازی + health (§5.۹) |
 | ۱۰ | CI پایه (lint/typecheck/test/migration) | CI برای خطای عمدی قرمز شود | ⏳ |
 
 ## ۴. Milestone M1 (تعریف «BR-1 تمام شد»)
@@ -442,8 +442,55 @@ ALL STEP-8 NEGATIVE CASES PASSED                          (exit 0)
 
 **محدودیت‌ها:** فرایند Worker (Node) و پایش عمق صف/سن پیام در گام ۹ می‌آید؛ این گام قرارداد DB و ایدم‌پوتنسی را می‌بندد. بازگشت `0007` تاریخچه `outbox.*` را پاک نمی‌کند (حذف نسخه تنظیم ممنوع است) و بذر آن فقط در نبود نسخه اجرا می‌شود.
 
+### ۵.۹ گام ۹ — رصد، پشتیبان و تمرین بازیابی (۱۴۰۵/۰۹/۰۳)
+
+محدوده `0008_ops_monitoring`: `sys.job_begin`/`job_finish` (یک اجرا در هر slot)، `sys.purge_expired_sessions` (فقط منقضی/باطل قدیمی‌تر از grace)، `sys.run_session_cleanup` (Job با ثبت در `job_runs` و idempotent)، و `sys.health_report` (عمق و سن صف، DLQ، نشست‌ها، کاربران قفل‌شده، Jobهای ناموفق، تعداد Migration) با مجوز `platform.health.read`. دو تنظیم نسخه‌دار `session.purge_grace_hours` و `job.session_cleanup.batch` اضافه شد.
+
+```
+$ bash scripts/db-migrate.sh down all
+8 Migration بازگشت داده شد.                              (exit 0)
+
+$ bash scripts/db-migrate.sh up
+→ اعمال 0001_init_base … 0008_ops_monitoring
+8 Migration اعمال شد.                                    (exit 0)
+```
+
+**آزمون منفی (`tests/0010_ops_negative.sql`، خروجی واقعی):**
+
+```
+PASS JOB | هر slot یک‌بار شروع می‌شود
+PASS JOB | پایان دوباره → FCO-1040
+PASS JOB | نام خالی → FCO-1041
+PASS CLEANUP | فقط نشست منقضی قدیمی حذف شد (نشست فعال و در grace ماند)
+PASS CLEANUP | Job یک‌بار ran شد و دوباره already_ran
+PASS CLEANUP | دسته نامعتبر → FCO-1041
+PASS HEALTH | بدون platform.health.read → FCO-1003
+PASS HEALTH | گزارش با مجوز و محتوای صف/نشست/Job
+PASS APP-ROLE | حذف مستقیم نشست مسدود شد · پاک‌سازی فقط از تابع
+ALL STEP-9 NEGATIVE CASES PASSED                          (exit 0)
+```
+
+**تمرین واقعی بازیابی (`scripts/db-backup-restore-drill.sh`):** یک کپی `fco_drill_source` از دیتابیس ساخته می‌شود، داده نمونه (کاربر، نشست، رویداد Outbox، رکورد Audit) در آن تزریق می‌شود، سپس `pg_dump -Fc` و بازیابی در دیتابیس جدا با `--exit-on-error` و مقایسه اثر انگشت:
+
+```
+$ bash scripts/db-backup-restore-drill.sh
+dump=/tmp/fco-20261124T125915Z.dump bytes=126342
+backup_host=/d/Works/fco/backups/fco-20261124T125915Z.dump
+source_fingerprint=20|1|11|32|1|1|1|20|20|8|6e9578f1…|8d9f6760…
+restored_fingerprint=20|1|11|32|1|1|1|20|20|8|6e9578f1…|8d9f6760…
+PASS restore: fingerprint برابر و داده نمونه سالم است (1|1|1|1)
+PASS negative: پشتیبان مخدوش رد شد
+نتیجه: OK — پشتیبان سالم بازیابی شد و پشتیبان مخدوش رد شد.   (exit 0)
+```
+
+**اثبات کارکرد آزمون:** با `grant delete on iam.sessions to fco_app` همان فایل با `FAIL APP-ROLE: حذف مستقیم نشست مجاز بود` و `exit 3` قرمز شد؛ پس از `revoke` سبز شد.
+
+**گیت‌ها:** هر پنج مجموعه `0005/0007/0008/0009/0010` سبز و `verify` سبز.
+
+**محدودیت‌ها:** فرایند Worker و Endpoint پایش هنوز نوشته نشده (گام ۱۰/BR-3)؛ پشتیبان offsite و رمزنگاری آن منتظر مشخص‌شدن سرور Production (Q-11) است و تمرین فعلی روی همان میزبان است. حذف نشست پس از grace یک عملیات نگهداشت است، نه حذف PII (که منتظر LEG-EXT/ADR-010 است).
+
 ## ۶. ریسک‌های شروع و پاسخ
 bun خراب → npm · نبود psql → `docker exec` · CRLF → `.gitattributes` · نبود Sandbox درگاه → BR-1 مستقل است · فشار دمو → M1 جایگزین دموی ظاهری.
 
 ## ۷. گام بعدی
-گام ۹: رصد و پشتیبان + آزمون Restore واقعی (شامل Job پاک‌سازی نشست و پایش عمق صف)، سپس گام ۱۰ (CI پایه با خطای عمدی). آداپتور پیامک، صفحه Audit و UI مشتری در BR-2.
+گام ۱۰: CI پایه (lint/typecheck/test/migration/build) با «قرمز عمدی»؛ سپس M1 و BR-2 (آداپتور پیامک، صفحه Audit، UI مشتری، فرایند Worker).
