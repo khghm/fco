@@ -232,9 +232,22 @@ begin
     raise notice 'PASS APP-ROLE | DDL مسدود شد';
   end;
 
-  insert into sys.audit_log (action, entity_type, after)
-  values ('login_succeeded', 'users', '{"via":"psql-test"}'::jsonb);
-  raise notice 'PASS APP-ROLE | درج Audit مجاز بود';
+  perform sys.audit_write(
+    p_actor => '33333333-3333-3333-3333-333333333333'::uuid,
+    p_action => 'login_succeeded',
+    p_entity_type => 'users',
+    p_entity_id => '33333333-3333-3333-3333-333333333333'::uuid,
+    p_after => '{"via":"psql-test"}'::jsonb,
+    p_request_id => 'psql-test-1');
+  raise notice 'PASS APP-ROLE | ثبت Audit از مسیر تابع مجاز بود';
+
+  begin
+    insert into sys.audit_log (action, entity_type, "after")
+    values ('bypass', 'users', '{}'::jsonb);
+    raise exception 'FAIL APP-ROLE: درج مستقیم Audit مجاز بود';
+  exception when insufficient_privilege then
+    raise notice 'PASS APP-ROLE | درج مستقیم Audit مسدود شد';
+  end;
 
   begin
     update sys.audit_log set action = 'tamper';

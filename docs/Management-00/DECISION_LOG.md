@@ -1,6 +1,6 @@
 # لاگ تصمیم‌ها (Decision Log)
 
-> **وضعیت:** زنده (Living document) · **نسخه:** v1.3 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۳
+> **وضعیت:** زنده (Living document) · **نسخه:** v1.4 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۳
 > هر تصمیمی که «رفتار» را تغییر می‌دهد اینجا ثبت می‌شود: چه تصمیمی، چرا، چه کسی، تا کی معتبر است.
 > تصمیم معماری بزرگ → ADR مستقل در `Architecture-02/ADR/`. تصمیم دامنه/محصول → `product/OPEN_DECISIONS.md`. این سند **فهرست واحد و تاریخ‌دار همه** است.
 > **مالک فهرست واحد تصمیم‌ها و گزینه‌های رد‌شده.** متن هر ADR در `Architecture-02/ADR/`.
@@ -64,6 +64,7 @@
 | D-11 | **همه اسناد یک سرصفحه نسخه/تاریخ/وضعیت دارند** | جلوگیری از سند کهنه (اصل ۱۰) | ۱۴۰۵/۰۹/۰۳ | — |
 | D-12 | **Migration با SQL نسخه‌دار و `scripts/db-migrate.sh`** (چک‌سام SHA-256، `sys.schema_migrations`) | SQL صریح و قابل‌بازبینی؛ بدون افزودن ابزار npm پیش از اسکلت اپ (D-05)؛ مسیر بازگشت الزامی | ۱۴۰۵/۰۹/۰۳ | ✅ در BR-1 گام ۴ اجرا شد؛ اگر گام ۵/۱۰ ابزار Node لازم شد، ADR کوتاه |
 | D-13 | **Spool OTP فقط محیط توسعه** — کد خام در `sys.otp_spool`، فقط از تابع و فقط با `auth.otp.spool_enabled` (پیش‌فرض خاموش) | تستپذیری OTP بدون سرویس پیامک؛ خطر ذخیره کد خام با یک تنظیم در Production خنثی و در CI گیت می‌شود | ۱۴۰۵/۰۹/۰۳ | پیش از استقرار و در گام ۱۰ (چک‌لیست CI/استقرار)؛ با آداپتور واقعی پیامک در BR-2 |
+| D-14 | **نوشتن Audit و تغییر تنظیم فقط از تابع** (`sys.audit_write`، `sys.setting_set`)؛ INSERT مستقیم اپ روی `sys.audit_log` لغو شد | اعتبارسنجی actor/request_id/دلیل و ثبت Audit اجباری در یک مسیر؛ جلوگیری از تاریخ‌سازی تاریخچه تنظیم | ۱۴۰۵/۰۹/۰۳ | اگر هزینه نوشتن Audit در بار واقعی مشکل شد (گام ۸/۹) |
 
 ---
 
@@ -105,6 +106,7 @@
 | Q-06 | `BUSINESS_WORKFLOWS` (WF پرداخت/حمل)، `API_SPECIFICATION` (Webhook)، `SECURITY_ARCHITECTURE` (امضا/بازپخش) |
 | Q-11 | `DEPLOYMENT_GUIDE`، `BACKUP_AND_RECOVERY`، `SECURITY_ARCHITECTURE` (شبکه/دسترسی) |
 | ADR-007 | `Architecture-02/ADR/ADR-007-auth-session-strategy.md`، `SECURITY_ARCHITECTURE §2/§13`، `DATABASE_DESIGN §3.1`، `packages/infrastructure/migrations/0002_identity_and_authorization.sql`، `packages/infrastructure/tests/0005_identity_negative.sql` |
+| D-14 | `packages/infrastructure/migrations/0005_audit_and_settings.sql`، `packages/infrastructure/tests/0008_audit_settings_negative.sql`، `DATABASE_DESIGN §3.11`، `IMPLEMENTATION_START_PLAN §5.۷` |
 | D-13 | `packages/infrastructure/migrations/0004_otp_customer.sql` (`sys.otp_spool`)، `packages/infrastructure/tests/0007_otp_negative.sql`، `SECURITY_ARCHITECTURE §2`، `IMPLEMENTATION_START_PLAN §5.۶` |
 | D-09 | `infra/compose/docker-compose.yml` (profile)، `.env.example`، `IMPLEMENTATION_START_PLAN §5.۲` |
 | D-07، D-10، D-12 | `DATABASE_DESIGN §5` (سیاست Migration)، `packages/infrastructure/migrations/*`، `scripts/db-migrate.sh`، `IMPLEMENTATION_START_PLAN §5.۴` |

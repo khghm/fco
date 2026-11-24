@@ -1,6 +1,6 @@
 # تغییرات (CHANGELOG)
 
-> **وضعیت:** زنده · **نسخه:** v1.3 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۳
+> **وضعیت:** زنده · **نسخه:** v1.4 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۳
 > قالب بر پایه Keep a Changelog، تاریخ‌ها شمسی + ISO. هر تغییر در **رفتار، دامنه یا ساختار اسناد** یک ردیف اینجا دارد.
 > شاهد هر نسخه: `git show --stat <commit>`.
 > **مالک تاریخ تغییرات اسناد و مخزن.**
@@ -10,9 +10,31 @@
 ## [Unreleased]
 
 ### Planned
-- گام ۷: Audit و تنظیمات نسخه‌دار
 - گام ۸: Outbox/Queue Port/Worker/DLQ و Job پاک‌سازی نشست
-- BR-2: آداپتور پیامک واقعی و UI ورود/ثبت مشتری
+- گام ۹: رصد و آزمون Restore
+- BR-2: آداپتور پیامک، صفحه Audit و UI مشتری
+
+---
+
+## [0.8.0] — ۱۴۰۵/۰۹/۰۳ (2026-11-24)
+
+### Added
+- `packages/infrastructure/migrations/0005_audit_and_settings.sql` (+ `.down.sql`) — `sys.audit_write` (actor/request_id/before-after اجباری)، `sys.audit_search` (مجوز `iam.audit.read`، سقف ۱۰۰)، `sys.setting_set` (مجوز، دلیل، تاریخ اعتبار غیرگذشته، Audit هم‌تراکنش)، تریگر تغییرناپذیری/ترتیب `setting_versions`، و Audit خودکار `iam.grant_role`/`iam.set_password_hash`.
+- `packages/infrastructure/tests/0008_audit_settings_negative.sql` — ۱۸ سناریوی منفی/مثبت برای Audit و تنظیم نسخه‌دار، از جمله سقف صفحه، بازنویسی تاریخچه و نسخه خارج از ترتیب.
+
+### Changed
+- INSERT مستقیم `fco_app` روی `sys.audit_log` لغو شد؛ آزمون گام ۵ به مسیر `sys.audit_write` منتقل شد (۳۲ PASS).
+- `DECISION_LOG` — D-14 (نوشتن Audit/تنظیم فقط از تابع) و ردیف اثر آن.
+- `DATABASE_DESIGN §3.11`، `SECURITY_ARCHITECTURE §13`، `TEST_STRATEGY §6`، `IMPLEMENTATION_START_PLAN §3/§5.۷/§7` با شاهدهای واقعی گام ۷.
+
+### Verified
+- `down all` → `up` از صفر: ۵ Migration؛ `verify` سبز.
+- `tests/0008` → `ALL STEP-7 NEGATIVE CASES PASSED`، `exit 0`؛ `tests/0005` → ۳۲ PASS؛ `tests/0007` سبز.
+- اثبات آزمون: غیرفعال‌کردن `setting_versions_guard` ⇒ `FAIL SETTING` و `exit 3`؛ پس از بازگردانی، سبز.
+
+### Known gaps
+- تلاش‌های ردشده (۴۰۳/۴۲۹) Audit نمی‌شوند (Exception تراکنش را بازمی‌گرداند) — رفع با Logger/Outbox بیرونی در گام ۸.
+- صفحه Audit، Export و جست‌وجوی متنی در BR-2/BR-3؛ `T-SEC-02/04/07` باز.
 
 ---
 

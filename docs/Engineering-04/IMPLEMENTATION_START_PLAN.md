@@ -1,6 +1,6 @@
 # برنامه شروع پیاده‌سازی — BR-1 گام‌به‌گام
 
-> **وضعیت:** تأییدشده · **نسخه:** v1.3 · **تاریخ:** ۱۴۰۵/۰۹/۰۳
+> **وضعیت:** تأییدشده · **نسخه:** v1.4 · **تاریخ:** ۱۴۰۵/۰۹/۰۳
 > **خروجی ۱۰ از ۱۰** — وضعیت اجرا در انتهای همین سند ثبت می‌شود.
 > **مالک گام‌های BR-1 و تنها محل ثبت «انجام شد» با شاهد واقعی.**
 
@@ -39,7 +39,7 @@
 | ۴ | Migration و اسکیمای پایه (IAM/Audit/Outbox/Setting) | اجرا از صفر + rollback | ✅ ۱۵ جدول در `iam`/`sys`؛ از صفر، بازگشت، drift و اتمیک بودن آزمون شد (§5.۴) |
 | ۵ | هویت و مجوز (ورود کارکنان، سیاست رمز، نشست، RBAC) | آزمون منفی دسترسی | ✅ `T-SEC-01/03/05/06` سبز + نقش اپ بدون DDL (§5.۵) |
 | ۶ | OTP مشتری (توسعه: Spool) | انقضا/نرخ/ضد Brute Force | ✅ `T-SEC-12` + ۱۲ سناریوی منفی؛ Spool با پیش‌فرض خاموش (D-13، §5.۶) |
-| ۷ | Audit و تنظیمات نسخه‌دار | رکورد قابل‌جست‌وجو + مجوز تغییر | ⏳ |
+| ۷ | Audit و تنظیمات نسخه‌دار | رکورد قابل‌جست‌وجو + مجوز تغییر | ✅ `T-PLT-04/05` + ۱۷ سناریوی منفی؛ فقط مسیر تابع (§5.۷) |
 | ۸ | Outbox/Queue Port/Worker/DLQ | اجرای دوبار بدون اثر تکراری | ⏳ |
 | ۹ | رصد و پشتیبان + آزمون Restore | بازیابی مستند روی محیط جدا | ⏳ |
 | ۱۰ | CI پایه (lint/typecheck/test/migration) | CI برای خطای عمدی قرمز شود | ⏳ |
@@ -341,8 +341,65 @@ ALL STEP-6 NEGATIVE CASES PASSED                          (exit 0)
 
 **محدودیت‌ها:** آداپتور پیامک واقعی و UI ورود مشتری در BR-2؛ این گام فقط قرارداد سرور و قواعد ضدسوءاستفاده را می‌بندد. اتصال OTP به حساب `R-CUST` و صدور نشست مشتری در use-case بعدی می‌آید؛ Spool باید در Production خاموش بماند (D-13).
 
+### ۵.۷ گام ۷ — Audit و تنظیمات نسخه‌دار (۱۴۰۵/۰۹/۰۳)
+
+محدوده `0005_audit_and_settings`:
+
+| مؤلفه | قاعده اعمال‌شده |
+|---|---|
+| `sys.audit_write` | تنها مسیر نوشتن Audit؛ actor موجود، `action`/`entity_type` غیرخالی، حداقل یکی از before/after، `request_id` اجباری |
+| `sys.audit_search` | مجوز `iam.audit.read`؛ فیلتر entity/actor/action/بازه زمانی؛ سقف سخت ۱۰۰ ردیف، پیش‌فرض ۵۰ |
+| `sys.setting_set` | مجوز `platform.setting.write`؛ دلیل اجباری؛ تاریخ اعتبار غیرگذشته؛ Audit در همان تراکنش |
+| `setting_versions` | فقط‌افزودنی و ترتیبی؛ نسخه جدید بازه قبلی را می‌بندد؛ تغییر مقدار و حذف نسخه رد می‌شود |
+| عملیات حساس | `iam.grant_role` و `iam.set_password_hash` خودشان Audit می‌نویسند (حتی اگر لایه اپ فراموش کند) |
+
+INSERT مستقیم اپ روی `sys.audit_log` لغو شد (D-14)؛ آزمون گام ۵ هم به مسیر تابع منتقل شد.
+
+```
+$ bash scripts/db-migrate.sh down all
+5 Migration بازگشت داده شد.                              (exit 0)
+
+$ bash scripts/db-migrate.sh up                           (از صفر)
+→ اعمال 0001_init_base
+→ اعمال 0002_identity_and_authorization
+→ اعمال 0003_identity_hardening
+→ اعمال 0004_otp_customer
+→ اعمال 0005_audit_and_settings
+5 Migration اعمال شد.                                    (exit 0)
+```
+
+**آزمون منفی (`tests/0008_audit_settings_negative.sql`، خروجی واقعی):**
+
+```
+PASS AUDIT | request_id خالی → FCO-1018
+PASS AUDIT | بدون before/after → FCO-1018
+PASS AUDIT | actor ناموجود → FCO-1005
+PASS AUDIT | بدون iam.audit.read → FCO-1003
+PASS AUDIT | جست‌وجوی فیلترشده با مجوز کار کرد
+PASS AUDIT | سقف ۱۰۰ و پیش‌فرض ۵۰ اعمال شد
+PASS SETTING | بدون platform.setting.write → FCO-1003
+PASS SETTING | بدون دلیل → FCO-1022
+PASS SETTING | کلید ناشناخته → FCO-1021
+PASS SETTING | تاریخ اعتبار گذشته → FCO-1023
+PASS SETTING | تغییر معتبر + بستن بازه + Audit ثبت شد
+PASS SETTING | نسخه آینده مقدار جاری را تغییر نداد
+PASS SETTING | نسخه خارج از ترتیب → FCO-1020
+PASS SETTING | بازنویسی نسخه قدیمی → FCO-1025
+PASS SETTING | حذف نسخه → FCO-1025
+PASS AUDIT | تخصیص نقش خودکار Audit شد
+PASS AUDIT | تغییر رمز خودکار Audit شد
+PASS AUDIT | فیلتر زمانی from/to کار کرد
+ALL STEP-7 NEGATIVE CASES PASSED                          (exit 0)
+```
+
+**اثبات کارکرد آزمون:** با `alter table sys.setting_versions disable trigger setting_versions_guard` همان فایل با `FAIL SETTING: بازه نسخه قبلی بسته نشد` و `exit 3` قرمز شد؛ پس از فعال‌سازی دوباره سبز شد.
+
+**گیت قدیمی:** مجموعه گام ۵ با ۳۲ PASS و گام ۶ بدون تغییر سبز ماندند؛ `verify` هم سبز است.
+
+**محدودیت‌ها:** «تلاش ردشده» (403/429) در Audit نمی‌آید چون Exception تراکنش را بازمی‌گرداند؛ رفع آن با Logger/Outbox بیرونی در گام ۸ است و در `SECURITY_ARCHITECTURE §13` ثبت شد. صفحه Audit، Export و جست‌وجوی متنی در BR-2/BR-3 می‌آید؛ این گام فقط مسیر ثبت و جست‌وجوی ساختاریافته را می‌بندد.
+
 ## ۶. ریسک‌های شروع و پاسخ
 bun خراب → npm · نبود psql → `docker exec` · CRLF → `.gitattributes` · نبود Sandbox درگاه → BR-1 مستقل است · فشار دمو → M1 جایگزین دموی ظاهری.
 
 ## ۷. گام بعدی
-گام ۷: Audit و تنظیمات نسخه‌دار (رکورد قابل‌جست‌وجو + مجوز تغییر)، سپس گام ۸ (Outbox/Queue/DLQ) و گام ۹ (رصد/Restore). آداپتور پیامک و UI مشتری در BR-2.
+گام ۸: Outbox ترانزاکشی، `Queue Port`، Worker ایدم‌پوتنت و DLQ (شامل Job پاک‌سازی نشست)، سپس گام ۹ (رصد/Restore). آداپتور پیامک، صفحه Audit و UI مشتری در BR-2.
