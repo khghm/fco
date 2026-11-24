@@ -101,7 +101,7 @@ docs/
 | `docs/architecture/SYSTEM_ARCHITECTURE.md` | `docs/Architecture-02/SYSTEM_ARCHITECTURE.md` |
 | `docs/architecture/ADR/` | `docs/Architecture-02/ADR/` |
 | `docs/operations/IMPLEMENTATION_START_PLAN.md` | `docs/Engineering-04/IMPLEMENTATION_START_PLAN.md` |
-| `docs/quality/TEST_STRATEGY.md` (برنامه‌ریزی‌شده) | `docs/Engineering-04/TEST_STRATEGY.md` (ساخته‌شده) |
+| سند برنامه‌ریزی‌شده `TEST_STRATEGY` در پوشه `quality/` | `Engineering-04/TEST_STRATEGY.md` (ساخته‌شده) |
 | `docs/operations/DEPLOYMENT_GUIDE.md` (برنامه‌ریزی‌شده) | `docs/Engineering-04/DEPLOYMENT_GUIDE.md` (ساخته‌شده) |
 | `docs/operations/BACKUP_RESTORE_GUIDE.md` (برنامه‌ریزی‌شده) | `docs/Engineering-04/BACKUP_AND_RECOVERY.md` (ساخته‌شده) |
 
@@ -124,3 +124,4 @@ docs/
 3. هیچ سند «انجام شد» نمی‌گوید بدون شاهد قابل‌بازبینی (قاعده شاهد §6 همان سند).
 4. سند قدیمی‌شده = نقص، نه یادگار؛ تغییر رفتاری در همان تغییر، سند را به‌روز می‌کند.
 5. تناقض را حل کن، نه تکرار: ترتیب اعتبار `PROJECT_MASTER_CONTROL` → `DECISION_LOG` → ADR → سند دامنه.
+6. پیش از هر کامیت: `python scripts/docs-audit.py` (تکرار خط/ردیف جدول، ارجاع شکسته، پایان خط). قرمز بودنش در CI مانع ادغام است (`§1.1`).

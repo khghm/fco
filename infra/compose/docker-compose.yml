@@ -4,6 +4,11 @@
 # اجرا:  docker compose -f infra/compose/docker-compose.yml up -d
 # توقف:  docker compose -f infra/compose/docker-compose.yml down
 # پاک‌سازی کامل (شامل داده): ... down -v
+#
+# D-09: سرویس ذخیره‌سازی S3 (minio) اختیاری است و با profile جدا اجرا می‌شود،
+#       چون تصویر آن در محیط توسعه در دسترس نیست و BR-1 به S3 نیاز ندارد.
+#       اجرای کامل با ذخیره‌سازی: ... --profile storage up -d
+#       نیازمندی S3 از BR-2 (رسانه محصول) شروع می‌شود — ADR-010 و .env.example را ببینید.
 
 name: fco
 
@@ -54,9 +59,12 @@ services:
       timeout: 5s
       retries: 10
 
+  # اختیاری — فقط با: docker compose --profile storage up -d
+  # نبود این سرویس، اجرای postgres و redis را نمی‌شکند (D-09).
   minio:
     image: minio/minio:latest
     container_name: fco-minio
+    profiles: ["storage"]
     restart: unless-stopped
     command: ["server", "/data", "--console-address", ":9001"]
     environment:

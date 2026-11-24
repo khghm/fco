@@ -16,6 +16,27 @@
 
 ---
 
+## [0.4.0] — ۱۴۰۵/۰۹/۰۳ (2026-11-24)
+
+### Added
+- `scripts/docs-audit.py` — ممیز دائمی اسناد: تکرار خط (≥۴۰ کاراکتر) و ردیف جدول بین اسناد، ارجاع شکسته، پایان خط CRLF. کد خروج ۱ در صورت نقض؛ پشتیبانی از `--verbose`.
+- `.github/workflows/docs.yml` — اجرای ممیز روی `push` به `main` و هر `pull_request` به‌صورت **مسدودکننده**.
+
+### Changed
+- **D-09 اعمال شد:** سرویس S3/MinIO در `infra/compose/docker-compose.yml` به `profiles: ["storage"]` منتقل شد. استک پایه (`up -d`) فقط PostgreSQL و Redis را بالا می‌آورد؛ اجرای کامل با `--profile storage up -d`. یادداشت در `.env.example` و `DECISION_LOG`.
+- `Engineering-04/IMPLEMENTATION_START_PLAN.md §5` بازنویسی شد: شاهد واقعی گام ۳ (سلامت PostgreSQL/Redis، نسخه‌ها، منطقه زمانی، `PING`) و شاهد منفی/مثبت ممیز.
+- `Engineering-04/IMPLEMENTATION_PLAN.md §6` گیت «ممیزی اسناد» به جدول CI اضافه شد؛ `docs/README.md §10` قاعده اجرای ممیز پیش از کامیت.
+
+### Verified
+- `python scripts/docs-audit.py` → `OK` (۳۵ فایل، صفر تکرار/ارجاع شکسته/CRLF).
+- آزمون منفی: تزریق یک خط تکراری و یک فایل CRLF → `exit 1` و گزارش دقیق؛ پس از بازگردانی → `exit 0`.
+- `docker compose up -d` → `exit 0`؛ `fco-postgres` healthy (PostgreSQL 16.16، `pg_isready` = accepting connections، `timezone` = UTC، تهران +۰۳:۳۰)، `fco-redis` healthy (`PONG`، 7.4.12).
+
+### Note
+- CI کامل (lint/typecheck/test/migration) عمداً ساخته نشد؛ کد اپ و Migration هنوز وجود ندارد (BR-1 گام ۴ و ۱۰).
+
+---
+
 ## [0.3.1] — ۱۴۰۵/۰۹/۰۳ (2026-11-24)
 
 ### Changed — پاک‌سازی تکرار و تثبیت تک‌منبعی

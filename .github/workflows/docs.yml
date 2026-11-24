@@ -1,0 +1,27 @@
+name: Docs integrity
+
+# قاعده تک‌منبعی (PROJECT_MASTER_CONTROL §4.2) را مسدودکننده می‌کند:
+# تکرار خط/ردیف جدول، ارجاع شکسته یا پایان خط CRLF ⇒ اجرا قرمز می‌شود.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  docs-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Audit docs (duplicates, broken refs, LF)
+        run: python scripts/docs-audit.py --verbose
+
+      - name: Show failure summary
+        if: failure()
+        run: |
+          echo "::error::ممیزی اسناد رد شد — scripts/docs-audit.py را محلی اجرا و تکرار/ارجاع را اصلاح کنید."

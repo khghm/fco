@@ -125,6 +125,7 @@ install (lockfile) → lint → typecheck → unit → integration (DB واقع�
 | Security | `T-SEC-*` سبز |
 | Build | خروجی قابل‌تکرار با lockfile |
 | قرمز عمدی | یک بار آزمون به‌صورت آگاهانه شکسته تا CI قرمز شود (اثبات کارکرد گیت) |
+| ممیزی اسناد | `python scripts/docs-audit.py` سبز؛ `.github/workflows/docs.yml` مسدودکننده (تکرار/ارجاع شکسته/CRLF) |
 
 **سیاست شاخه:** شاخه کوتاه‌عمر + بازبینی؛ ادغام فقط با CI سبز؛ بدون force-push روی `main`؛ هر commit پیام معنادار.
 
