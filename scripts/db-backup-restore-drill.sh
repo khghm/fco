@@ -120,23 +120,29 @@ RESTORE_SECONDS=$(( $(date +%s) - RESTORE_START ))
 printf 'PASS restore: fingerprint برابر و داده نمونه سالم است (%s)\n' "$DATA_CHECK"
 printf 'restore_seconds=%s\n' "$RESTORE_SECONDS"
 
-step "کوئری واقعی با نقش fco_app در دیتابیس بازیابی"
-APP_RESULT="$(docker exec -i "$CONTAINER" psql -v ON_ERROR_STOP=1 -tA -q -U "$DB_USER" -d "$RESTORE_DB" <<'SQL'
+# همان کوئری را روی منبع و بازیابی می‌زنیم: برابری یعنی GRANTها حفظ شده‌اند،
+# و پسوند ثابت یعنی سخت‌گیری دسترسی اپ هم از دست نرفته است.
+app_probe() {
+  docker exec -i "$CONTAINER" psql -v ON_ERROR_STOP=1 -tA -q -U "$DB_USER" -d "$1" <<'SQL'
 set role fco_app;
 select (select count(*) from iam.roles)
     || '|' || has_table_privilege(current_user, 'iam.sessions', 'INSERT')
     || '|' || has_table_privilege(current_user, 'sys.audit_log', 'UPDATE')
     || '|' || has_table_privilege(current_user, 'iam.roles', 'SELECT');
 SQL
-)" || fail "کوئری fco_app روی دیتابیس بازیابی شکست خورد (GRANT بازیابی نشده است)"
-printf 'app_query=%s\n' "$APP_RESULT"
-APP_ROLES="${APP_RESULT%%|*}"
-case "$APP_RESULT" in
-  *'|false|false|true') ;;
-  *) fail "دسترسی نقش اپ پس از بازیابی انتظار را برآورده نکرد: $APP_RESULT" ;;
-esac
-[ "$APP_ROLES" -ge 1 ] || fail "نقش‌ها برای fco_app قابل خواندن نیستند: $APP_RESULT"
-printf 'PASS grants: نقش fco_app خواندن دارد و نوشتن مستقیم بسته است\n'
+}
+
+step "کوئری واقعی با نقش fco_app در منبع و دیتابیس بازیابی"
+APP_SOURCE="$(app_probe "$SOURCE_DB")" \
+  || fail "کوئری fco_app روی منبع شکست خورد"
+APP_RESULT="$(app_probe "$RESTORE_DB")" \
+  || fail "کوئری fco_app روی دیتابیس بازیابی شکست خورد (GRANT بازیابی نشده است)"
+printf 'app_query_source=%s\napp_query_restored=%s\n' "$APP_SOURCE" "$APP_RESULT"
+[ "$APP_SOURCE" = "$APP_RESULT" ] || fail "دسترسی نقش اپ پس از بازیابی با منبع نمی‌خواند"
+[ "${APP_RESULT#*|}" = 'false|false|true' ] \
+  || fail "سخت‌گیری دسترسی نقش اپ پس از بازیابی از دست رفت: $APP_RESULT"
+[ "${APP_RESULT%%|*}" -ge 1 ] || fail "نقش‌ها برای fco_app قابل خواندن نیستند: $APP_RESULT"
+printf 'PASS grants: دسترسی fco_app در بازیابی مانند منبع است و نوشتن مستقیم بسته مانده\n'
 
 step "آزمون منفی: پشتیبان مخدوش"
 docker exec "$CONTAINER" sh -c "dd if='$DUMP' of='$BAD_DUMP' bs=1 count=1024 status=none"

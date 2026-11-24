@@ -1,6 +1,6 @@
 # تغییرات (CHANGELOG)
 
-> **وضعیت:** زنده · **نسخه:** v1.7 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۳
+> **وضعیت:** زنده · **نسخه:** v1.8 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۳
 > قالب بر پایه Keep a Changelog، تاریخ‌ها شمسی + ISO. هر تغییر در **رفتار، دامنه یا ساختار اسناد** یک ردیف اینجا دارد.
 > شاهد هر نسخه: `git show --stat <commit>`.
 > **مالک تاریخ تغییرات اسناد و مخزن.**
@@ -13,6 +13,23 @@
 - گام ۱۰: CI پایه با خطای عمدی
 - M1: نمایش زنجیره کامل (ورود → Audit → Job → DLQ → Restore)
 - BR-2: آداپتور پیامک، صفحه Audit، UI مشتری، فرایند Worker
+
+---
+
+## [0.12.0] — ۱۴۰۵/۰۹/۰۳ (2026-11-24)
+
+### Added
+- `packages/infrastructure/migrations/0010_job_limits.sql` (+ `.down.sql`) — سقف `job.max_attempts` (عبور → `FCO-1042`)، آستانه `job.stuck_after_minutes` و `jobs.stuck`/`stuck_runs`/`exhausted_24h` در `health_report`.
+- آزمون‌های `PASS CAP`، ماندگاری شکست Job و `PASS HEALTH | stuck/exhausted` در `tests/0010_ops_negative.sql`.
+
+### Fixed
+- `run_session_cleanup` دیگر در exception `raise` نمی‌کند (که کل تراکنش و رکورد `failed` را برمی‌گرداند)؛ شکست با `outcome='failed'` ثبت و برگردانده می‌شود.
+- Drill: کوئری `fco_app` روی منبع و بازیابی زده و مقایسه می‌شود؛ برابری + پسوند ثابت، حفظ GRANTها و سخت‌گیری دسترسی را با هم اثبات می‌کند.
+
+### Verified
+- `down all` → `up`: ۱۰ Migration؛ هر پنج مجموعه سبز؛ `verify` سبز؛ Drill با schema 0010.
+- `restore_seconds=40`، `app_query_source=app_query_restored=11|false|false|true`، پشتیبان مخدوش رد شد، `exit 0`.
+- اثبات منفی: `job_begin` بی‌سقف ⇒ `FAIL CAP`؛ `run_session_cleanup` قدیمی ⇒ `FCO-1041` بدون رکورد شکست؛ `health_report` قدیمی ⇒ `FAIL HEALTH: stuck_runs شامل stuck_probe نیست`.
 
 ---
 

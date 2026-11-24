@@ -41,7 +41,7 @@
 | ۶ | OTP مشتری (توسعه: Spool) | انقضا/نرخ/ضد Brute Force | ✅ `T-SEC-12` + ۱۲ سناریوی منفی؛ Spool با پیش‌فرض خاموش (D-13، §5.۶) |
 | ۷ | Audit و تنظیمات نسخه‌دار | رکورد قابل‌جست‌وجو + مجوز تغییر | ✅ `T-PLT-04/05` + ۱۷ سناریوی منفی؛ فقط مسیر تابع (§5.۷) |
 | ۸ | Outbox/Queue Port/Worker/DLQ | اجرای دوبار بدون اثر تکراری | ✅ `T-PLT-01/02` + lease/برای تست؛ مسیر DLQ (§5.۸) |
-| ۹ | رصد و پشتیبان + آزمون Restore | بازیابی مستند روی محیط جدا | ✅ `T-DR-01` + Job پاک‌سازی/retry + health + GRANT بازیابی (§5.۹) |
+| ۹ | رصد و پشتیبان + آزمون Restore | بازیابی مستند روی محیط جدا | ✅ `T-DR-01` + Job پاک‌سازی/retry/سقف + health (stuck) + GRANT بازیابی (§5.۹) |
 | ۱۰ | CI پایه (lint/typecheck/test/migration) | CI برای خطای عمدی قرمز شود | ⏳ |
 
 ## ۴. Milestone M1 (تعریف «BR-1 تمام شد»)
@@ -451,8 +451,8 @@ $ bash scripts/db-migrate.sh down all
 8 Migration بازگشت داده شد.                              (exit 0)
 
 $ bash scripts/db-migrate.sh up
-→ اعمال 0001_init_base … 0008_ops_monitoring
-8 Migration اعمال شد.                                    (exit 0)
+→ اعمال 0001_init_base … 0010_job_limits
+10 Migration اعمال شد.                                    (exit 0)
 ```
 
 **آزمون منفی (`tests/0010_ops_negative.sql`، خروجی واقعی):**
@@ -479,16 +479,17 @@ backup_host=/d/Works/fco/backups/fco-20261124T125915Z.dump
 source_fingerprint=20|1|11|32|1|1|1|20|20|8|6e9578f1…|8d9f6760…
 restored_fingerprint=20|1|11|32|1|1|1|20|20|8|6e9578f1…|8d9f6760…
 PASS restore: fingerprint برابر و داده نمونه سالم است (1|1|1|1)
-restore_seconds=43
-app_query=11|false|false|true
-PASS grants: نقش fco_app خواندن دارد و نوشتن مستقیم بسته است
+restore_seconds=40
+app_query_source=11|false|false|true
+app_query_restored=11|false|false|true
+PASS grants: دسترسی fco_app در بازیابی مانند منبع است و نوشتن مستقیم بسته ماند
 PASS negative: پشتیبان مخدوش رد شد
 نتیجه: OK — پشتیبان سالم بازیابی شد و پشتیبان مخدوش رد شد.   (exit 0)
 ```
 
 **اثبات کارکرد آزمون:** با `grant delete on iam.sessions to fco_app` همان فایل با `FAIL APP-ROLE: حذف مستقیم نشست مجاز بود` و `exit 3` قرمز شد؛ پس از `revoke` سبز شد.
 
-**GRANT در بازیابی:** `pg_restore` دیگر بدون `--no-privileges` اجرا می‌شود؛ سپس با `set role fco_app` یک کوئری واقعی روی دیتابیس بازیابی زده می‌شود (خواندن نقش‌ها + بررسی بسته‌بودن INSERT نشست و UPDATE Audit). اگر GRANT بازیابی نشده باشد، کوئری با خطای دسترسی شکست می‌خورد و Drill قرمز می‌شود: `app_query=11|false|false|true`.
+**GRANT در بازیابی:** `pg_restore` دیگر بدون `--no-privileges` اجرا می‌شود؛ سپس همان کوئری با `set role fco_app` روی **منبع و بازیابی** زده و نتیجه مقایسه می‌شود (خواندن نقش‌ها + بسته‌بودن INSERT نشست و UPDATE Audit + بازبودن SELECT نقش‌ها). برابری دو نتیجه یعنی GRANTها حفظ شده‌اند و پسوند ثابت یعنی سخت‌گیری دسترسی اپ هم از دست نرفته است؛ اگر GRANT نیامده باشد، کوئری با خطای دسترسی شکست می‌خورد.
 
 **بازبینی تلاش دوباره Job (`0009`):** پیش از این، slot شکست‌خورده تا ابد مسدود می‌ماند. اکنون همان رکورد با `attempt+1` دوباره `running` می‌شود؛ slot موفق یا در حال اجرا باز نمی‌شود:
 
@@ -499,6 +500,20 @@ PASS RETRY | slot موفق دوباره باز نشد
 ```
 
 اثبات آزمون: بازگرداندن تعریف قبلی `sys.job_begin` ⇒ `FAIL RETRY: slot شکست‌خورده دوباره باز نشد` و `exit 3`؛ پس از اجرای دوباره `0009` سبز شد.
+
+**بازبینی `0010` — سقف تلاش، شکست ماندگار و Job گیرکرده:** سه شکاف واقعی بسته شد: (۱) تلاش دوباره بی‌سقف بود و یک Job خراب می‌توانست در همان slot حلقه بزند؛ (۲) `run_session_cleanup` در exception بلافاصله `raise` می‌کرد و چون Postgres کل تراکنش را برمی‌گرداند، رکورد `failed` و `attempt` هرگز ذخیره نمی‌شد؛ (۳) گزارش سلامت اجرای `running` قدیمی (Worker مرده) را از اجرای سالم تشخیص نمی‌داد.
+
+```
+PASS CAP | سقف 3 تلاش → FCO-1042: سقف تلاش 3 برای Job retry_cap_probe …
+PASS CLEANUP | شکست Job با outcome=failed ثبت شد
+PASS CLEANUP | تلاش دوباره همان slot ran شد (attempt=2)
+PASS HEALTH | Job گیرکرده در stuck/stuck_runs دیده شد
+PASS HEALTH | Job با تلاش تمام‌شده در exhausted_24h دیده شد
+```
+
+آستانه‌ها تنظیم نسخه‌دارند: `job.max_attempts=3` و `job.stuck_after_minutes=30`. `run_session_cleanup` شکست را با `outcome='failed'` برمی‌گرداند (بدون rollback) تا caller هشدار بدهد؛ سکوت ممنوع است.
+
+اثبات آزمون‌ها: `job_begin` بی‌سقف ⇒ `FAIL CAP: تلاش بیش از سقف 3 پذیرفته شد`؛ `run_session_cleanup` قدیمی ⇒ خطای `FCO-1041` به‌جای رکورد شکست؛ `health_report` قدیمی ⇒ `FAIL HEALTH: stuck_runs شامل stuck_probe نیست`. همه پس از بازگرداندن `0010` سبز شدند.
 
 **گیت‌ها:** هر پنج مجموعه `0005/0007/0008/0009/0010` سبز و `verify` سبز.
 
