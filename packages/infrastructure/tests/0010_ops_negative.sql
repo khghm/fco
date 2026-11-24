@@ -60,6 +60,44 @@ begin
   end;
 end $$;
 
+-- --- تلاش دوباره همان slot پس از شکست ---------------------------------------
+do $$
+declare v_run bigint; v_retry bigint; v_attempt integer; v_status text;
+begin
+  v_run := sys.job_begin('session_cleanup', '2026-11-24 12:00:00+00');
+  if v_run is null then
+    raise exception 'FAIL RETRY: شروع اول NULL داد';
+  end if;
+
+  perform sys.job_finish(v_run, 'failed', 'db timeout');
+
+  v_retry := sys.job_begin('session_cleanup', '2026-11-24 12:00:00+00');
+  if v_retry is null then
+    raise exception 'FAIL RETRY: slot شکست‌خورده دوباره باز نشد';
+  end if;
+  if v_retry <> v_run then
+    raise exception 'FAIL RETRY: رکورد جدید ساخته شد (%)، انتظار همان رکورد (%)', v_retry, v_run;
+  end if;
+
+  select attempt, status into v_attempt, v_status from sys.job_runs where id = v_run;
+  if v_attempt <> 2 or v_status <> 'running' then
+    raise exception 'FAIL RETRY: attempt=% status=%', v_attempt, v_status;
+  end if;
+  raise notice 'PASS RETRY | همان slot با attempt=2 دوباره running شد';
+
+  -- در حال اجرا: شروع دوباره نباید بدهد
+  if sys.job_begin('session_cleanup', '2026-11-24 12:00:00+00') is not null then
+    raise exception 'FAIL RETRY: slot در حال اجرا دوباره شروع شد';
+  end if;
+  raise notice 'PASS RETRY | slot در حال اجرا دوباره شروع نشد';
+
+  perform sys.job_finish(v_run, 'succeeded');
+  if sys.job_begin('session_cleanup', '2026-11-24 12:00:00+00') is not null then
+    raise exception 'FAIL RETRY: slot موفق دوباره باز شد';
+  end if;
+  raise notice 'PASS RETRY | slot موفق دوباره باز نشد';
+end $$;
+
 -- --- پاک‌سازی نشست: فقط منقضی/باطل قدیمی --------------------------------
 do $$
 declare

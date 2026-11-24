@@ -100,8 +100,10 @@ step "بازیابی در $RESTORE_DB"
 RESTORE_START=$(date +%s)
 psql_admin -c "drop database if exists \"$RESTORE_DB\";" >/dev/null
 psql_admin -c "create database \"$RESTORE_DB\";" >/dev/null
+# GRANTها هم بازیابی می‌شوند (بدون --no-privileges) تا دسترسی اپ واقعی سنجیده شود؛
+# --no-owner چون مالکیت اشیا در این میزبان همان کاربر بازیابی است.
 docker exec "$CONTAINER" pg_restore -U "$DB_USER" -d "$RESTORE_DB" \
-  --exit-on-error --no-owner --no-privileges "$DUMP"
+  --exit-on-error --no-owner "$DUMP"
 
 RESTORED_FP="$(fingerprint "$RESTORE_DB")"
 printf 'restored_fingerprint=%s\n' "$RESTORED_FP"
@@ -118,13 +120,31 @@ RESTORE_SECONDS=$(( $(date +%s) - RESTORE_START ))
 printf 'PASS restore: fingerprint برابر و داده نمونه سالم است (%s)\n' "$DATA_CHECK"
 printf 'restore_seconds=%s\n' "$RESTORE_SECONDS"
 
+step "کوئری واقعی با نقش fco_app در دیتابیس بازیابی"
+APP_RESULT="$(docker exec -i "$CONTAINER" psql -v ON_ERROR_STOP=1 -tA -q -U "$DB_USER" -d "$RESTORE_DB" <<'SQL'
+set role fco_app;
+select (select count(*) from iam.roles)
+    || '|' || has_table_privilege(current_user, 'iam.sessions', 'INSERT')
+    || '|' || has_table_privilege(current_user, 'sys.audit_log', 'UPDATE')
+    || '|' || has_table_privilege(current_user, 'iam.roles', 'SELECT');
+SQL
+)" || fail "کوئری fco_app روی دیتابیس بازیابی شکست خورد (GRANT بازیابی نشده است)"
+printf 'app_query=%s\n' "$APP_RESULT"
+APP_ROLES="${APP_RESULT%%|*}"
+case "$APP_RESULT" in
+  *'|false|false|true') ;;
+  *) fail "دسترسی نقش اپ پس از بازیابی انتظار را برآورده نکرد: $APP_RESULT" ;;
+esac
+[ "$APP_ROLES" -ge 1 ] || fail "نقش‌ها برای fco_app قابل خواندن نیستند: $APP_RESULT"
+printf 'PASS grants: نقش fco_app خواندن دارد و نوشتن مستقیم بسته است\n'
+
 step "آزمون منفی: پشتیبان مخدوش"
 docker exec "$CONTAINER" sh -c "dd if='$DUMP' of='$BAD_DUMP' bs=1 count=1024 status=none"
 psql_admin -c "drop database if exists \"$BAD_DB\";" >/dev/null
 psql_admin -c "create database \"$BAD_DB\";" >/dev/null
 
 if docker exec "$CONTAINER" pg_restore -U "$DB_USER" -d "$BAD_DB" \
-     --exit-on-error --no-owner --no-privileges "$BAD_DUMP" >/dev/null 2>&1; then
+     --exit-on-error --no-owner "$BAD_DUMP" >/dev/null 2>&1; then
   fail "پشتیبان مخدوش بازیابی شد؛ آزمون منفی بی‌اثر است"
 fi
 printf 'PASS negative: پشتیبان مخدوش رد شد\n'

@@ -1,6 +1,6 @@
 # تغییرات (CHANGELOG)
 
-> **وضعیت:** زنده · **نسخه:** v1.6 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۳
+> **وضعیت:** زنده · **نسخه:** v1.7 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۳
 > قالب بر پایه Keep a Changelog، تاریخ‌ها شمسی + ISO. هر تغییر در **رفتار، دامنه یا ساختار اسناد** یک ردیف اینجا دارد.
 > شاهد هر نسخه: `git show --stat <commit>`.
 > **مالک تاریخ تغییرات اسناد و مخزن.**
@@ -13,6 +13,23 @@
 - گام ۱۰: CI پایه با خطای عمدی
 - M1: نمایش زنجیره کامل (ورود → Audit → Job → DLQ → Restore)
 - BR-2: آداپتور پیامک، صفحه Audit، UI مشتری، فرایند Worker
+
+---
+
+## [0.11.0] — ۱۴۰۵/۰۹/۰۳ (2026-11-24)
+
+### Added
+- `packages/infrastructure/migrations/0009_job_retry.sql` (+ `.down.sql`) — slot `failed` با `attempt+1` دوباره `running` می‌شود؛ slot `succeeded`/`running` همچنان مسدود است.
+- `tests/0010_ops_negative.sql` — `PASS RETRY` برای بازشدن slot شکست‌خورده، بسته‌ماندن slot در حال اجرا و slot موفق.
+
+### Changed
+- `scripts/db-backup-restore-drill.sh` — GRANTها بازیابی می‌شوند (حذف `--no-privileges`) و پس از Restore کوئری واقعی با `set role fco_app` اجرا و ارزیابی می‌شود.
+- `BACKUP_AND_RECOVERY §7.1`، `DECISION_LOG` D-16/D-17، `DATABASE_DESIGN §3.11`، `TEST_STRATEGY §6`، `IMPLEMENTATION_START_PLAN §5.۹`.
+
+### Verified
+- `up` از صفر: ۹ Migration؛ هر پنج مجموعه سبز؛ `verify` سبز.
+- Drill: اثر انگشت برابر، `app_query=11|false|false|true`، `PASS grants`، پشتیبان مخدوش رد شد، `restore_seconds=43`، `exit 0`.
+- اثبات آزمون retry: بازگرداندن `job_begin` قبلی ⇒ `FAIL RETRY: slot شکست‌خورده دوباره باز نشد` و `exit 3`؛ پس از `0009` سبز.
 
 ---
 

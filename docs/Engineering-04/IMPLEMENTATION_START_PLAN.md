@@ -41,7 +41,7 @@
 | ۶ | OTP مشتری (توسعه: Spool) | انقضا/نرخ/ضد Brute Force | ✅ `T-SEC-12` + ۱۲ سناریوی منفی؛ Spool با پیش‌فرض خاموش (D-13، §5.۶) |
 | ۷ | Audit و تنظیمات نسخه‌دار | رکورد قابل‌جست‌وجو + مجوز تغییر | ✅ `T-PLT-04/05` + ۱۷ سناریوی منفی؛ فقط مسیر تابع (§5.۷) |
 | ۸ | Outbox/Queue Port/Worker/DLQ | اجرای دوبار بدون اثر تکراری | ✅ `T-PLT-01/02` + lease/برای تست؛ مسیر DLQ (§5.۸) |
-| ۹ | رصد و پشتیبان + آزمون Restore | بازیابی مستند روی محیط جدا | ✅ `T-DR-01` + Job پاک‌سازی + health (§5.۹) |
+| ۹ | رصد و پشتیبان + آزمون Restore | بازیابی مستند روی محیط جدا | ✅ `T-DR-01` + Job پاک‌سازی/retry + health + GRANT بازیابی (§5.۹) |
 | ۱۰ | CI پایه (lint/typecheck/test/migration) | CI برای خطای عمدی قرمز شود | ⏳ |
 
 ## ۴. Milestone M1 (تعریف «BR-1 تمام شد»)
@@ -479,11 +479,26 @@ backup_host=/d/Works/fco/backups/fco-20261124T125915Z.dump
 source_fingerprint=20|1|11|32|1|1|1|20|20|8|6e9578f1…|8d9f6760…
 restored_fingerprint=20|1|11|32|1|1|1|20|20|8|6e9578f1…|8d9f6760…
 PASS restore: fingerprint برابر و داده نمونه سالم است (1|1|1|1)
+restore_seconds=43
+app_query=11|false|false|true
+PASS grants: نقش fco_app خواندن دارد و نوشتن مستقیم بسته است
 PASS negative: پشتیبان مخدوش رد شد
 نتیجه: OK — پشتیبان سالم بازیابی شد و پشتیبان مخدوش رد شد.   (exit 0)
 ```
 
 **اثبات کارکرد آزمون:** با `grant delete on iam.sessions to fco_app` همان فایل با `FAIL APP-ROLE: حذف مستقیم نشست مجاز بود` و `exit 3` قرمز شد؛ پس از `revoke` سبز شد.
+
+**GRANT در بازیابی:** `pg_restore` دیگر بدون `--no-privileges` اجرا می‌شود؛ سپس با `set role fco_app` یک کوئری واقعی روی دیتابیس بازیابی زده می‌شود (خواندن نقش‌ها + بررسی بسته‌بودن INSERT نشست و UPDATE Audit). اگر GRANT بازیابی نشده باشد، کوئری با خطای دسترسی شکست می‌خورد و Drill قرمز می‌شود: `app_query=11|false|false|true`.
+
+**بازبینی تلاش دوباره Job (`0009`):** پیش از این، slot شکست‌خورده تا ابد مسدود می‌ماند. اکنون همان رکورد با `attempt+1` دوباره `running` می‌شود؛ slot موفق یا در حال اجرا باز نمی‌شود:
+
+```
+PASS RETRY | همان slot با attempt=2 دوباره running شد
+PASS RETRY | slot در حال اجرا دوباره شروع نشد
+PASS RETRY | slot موفق دوباره باز نشد
+```
+
+اثبات آزمون: بازگرداندن تعریف قبلی `sys.job_begin` ⇒ `FAIL RETRY: slot شکست‌خورده دوباره باز نشد` و `exit 3`؛ پس از اجرای دوباره `0009` سبز شد.
 
 **گیت‌ها:** هر پنج مجموعه `0005/0007/0008/0009/0010` سبز و `verify` سبز.
 
