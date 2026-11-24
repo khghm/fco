@@ -62,9 +62,9 @@
 
 | پرسش | تصمیم | ADR/سند مرتبط | تاریخ بازبینی |
 |---|---|---|---|
-| Q-02 | یک انبار فعال، مدل چند‌انباره | `architecture/DATA_ARCHITECTURE` (آینده) | پایان فاز ۱ |
+| Q-02 | یک انبار فعال، مدل چند‌انباره | `Architecture-02/DATABASE_DESIGN.md` §3.4 و §1 اصل ۸ | پایان فاز ۱ |
 | Q-04 | فاکتور داخلی + قواعد نسخه‌دار؛ رسمی در فاز ۲ | ADR-011 (پیش‌بینی‌شده) | قبل از Production |
-| Q-06 | یک درگاه + یک حمل API + مسیر دستی؛ COD خاموش | `architecture/INTEGRATION_ARCHITECTURE` (آینده) | پس از دسترسی Sandbox |
-| Q-11 | یک سرور داخلی + پشتیبان offsite | `operations/DEPLOYMENT_GUIDE` (آینده) | پس از اندازه‌گیری ظرفیت |
+| Q-06 | یک درگاه + یک حمل API + مسیر دستی؛ COD خاموش | `Architecture-02/API_SPECIFICATION.md` §6 و `Business-01/BUSINESS_WORKFLOWS.md` WF-05 | پس از دسترسی Sandbox |
+| Q-11 | یک سرور داخلی + پشتیبان offsite | `Engineering-04/DEPLOYMENT_GUIDE.md` §2 و `Engineering-04/BACKUP_AND_RECOVERY.md` | پس از اندازه‌گیری ظرفیت |
 
-> **تصمیم‌های پیش‌فرض پذیرفته‌شده مرتبط:** ADR-008 (صف)، ADR-009 (ارزش‌گذاری)، ADR-010 (نگهداشت داده) — جزئیات در پوشه `architecture/ADR/`.
+> **تصمیم‌های پیش‌فرض پذیرفته‌شده مرتبط:** ADR-008 (صف)، ADR-009 (ارزش‌گذاری)، ADR-010 (نگهداشت داده) — جزئیات در پوشه `Architecture-02/ADR/` و فهرست کامل در `Management-00/DECISION_LOG.md`.

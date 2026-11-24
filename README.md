@@ -2,27 +2,45 @@
 
 پلتفرم یکپارچه تجارت و مدیریت کسب‌وکار پوشاک — Self-hosted · فارسی/RTL · Production-grade.
 
-> **وضعیت پروژه:** مرحله صفر طراحی تأیید شده (G0)؛ در حال اجرای **BR-1** (پایه، هویت و اعتماد).
-> هیچ قابلیت محصولی هنوز پیاده‌سازی نشده است. وضعیت هر گام در `docs/operations/IMPLEMENTATION_START_PLAN.md` ثبت می‌شود.
+> **وضعیت پروژه:** فاز ۰ طراحی بسته شده (G0)؛ در حال اجرای **BR-1** (پایه، هویت و اعتماد).
+> هیچ قابلیت محصولی هنوز پیاده‌سازی نشده است. وضعیت هر گام با شاهد واقعی در `docs/Engineering-04/IMPLEMENTATION_START_PLAN.md` ثبت می‌شود.
 
 ## مستندات
 
-نقطه شروع: [`docs/README.md`](docs/README.md)
+نقطه شروع: [`docs/README.md`](docs/README.md) · منشور و قواعد: [`docs/Management-00/PROJECT_MASTER_CONTROL.md`](docs/Management-00/PROJECT_MASTER_CONTROL.md)
 
 | سند | موضوع |
 |---|---|
-| `docs/business/PROJECT_DISCOVERY_REPORT.md` | مأموریت، فرض‌ها، ریسک‌ها، تصمیم‌ها |
+| `docs/Management-00/PROJECT_MASTER_CONTROL.md` | منشور، اصول، فضای نام شناسه‌ها، گیت‌ها |
+| `docs/Management-00/PROJECT_ROADMAP.md` | توالی فازها و مسیر بحرانی |
+| `docs/Management-00/DECISION_LOG.md` | تصمیم‌ها (Q/ADR/D) و گزینه‌های رد‌شده |
+| `docs/Management-00/RISK_REGISTER.md` | ریسک‌ها با مالک و شاهد کاهش |
+| `docs/Management-00/CHANGELOG.md` | تغییرات اسناد و مخزن |
+| `docs/Business-01/PROJECT_DISCOVERY_REPORT.md` | مأموریت، فرض‌ها، ریسک‌ها |
+| `docs/Business-01/BUSINESS_REQUIREMENTS.md` | الزامات BRQ، دامنه in/out، قواعد |
+| `docs/Business-01/USER_ROLES_AND_PERMISSIONS.md` | نقش‌ها، مجوزها، تفکیک وظایف |
+| `docs/Business-01/BUSINESS_WORKFLOWS.md` | جریان‌های کاری WF با SLA و مسیر شکست |
+| `docs/Business-01/BUSINESS_OPERATIONS_BLUEPRINT.md` | از تأمین تا تسویه و مرجوعی (S1..S12) |
+| `docs/Business-01/ROLE_WORKFLOW_MATRIX.md` | نقش ↔ فرایند ↔ قابلیت ↔ ریسک |
+| `docs/Architecture-02/SYSTEM_ARCHITECTURE.md` | معماری کلان، مرز ماژول‌ها، مدل داده |
+| `docs/Architecture-02/DATABASE_DESIGN.md` | جداول، قیدها، ایندکس، Migration |
+| `docs/Architecture-02/API_SPECIFICATION.md` | قرارداد API، کدهای خطا، endpointها |
+| `docs/Architecture-02/SECURITY_ARCHITECTURE.md` | مدل تهدید، احراز هویت، رمزنگاری |
+| `docs/UX-03/DESIGN_SYSTEM.md` | توکن‌ها، مؤلفه‌ها، RTL، دسترس‌پذیری |
+| `docs/UX-03/PERSIAN_UX_STANDARDS.md` | لحن، واژه‌نامه، تاریخ شمسی، مبلغ، پیام‌ها |
+| `docs/UX-03/ADMIN_PANEL_SPECIFICATION.md` | صفحه‌ها، صف کار، مجوزها |
+| `docs/Engineering-04/IMPLEMENTATION_PLAN.md` | استک، ساختار، ترتیب اجرا، CI |
+| `docs/Engineering-04/IMPLEMENTATION_START_PLAN.md` | گام‌های BR-1 + شاهد اجرا |
+| `docs/Engineering-04/TEST_STRATEGY.md` | سطوح آزمون، آزمون قاعده‌محور |
+| `docs/Engineering-04/DEPLOYMENT_GUIDE.md` | محیط‌ها، نصب، انتشار، Rollback |
+| `docs/Engineering-04/BACKUP_AND_RECOVERY.md` | پشتیبان، Restore، DR |
 | `docs/product/CAPABILITY_MAP.md` | ۱۶ دامنه، قابلیت‌های FR با اولویت |
-| `docs/business/BUSINESS_OPERATIONS_BLUEPRINT.md` | از تأمین تا تسویه و مرجوعی (S1..S12) |
 | `docs/product/ROLE_SCENARIOS.md` | سناریوهای نقش‌محور |
-| `docs/business/ROLE_WORKFLOW_MATRIX.md` | نقش ↔ فرایند ↔ مجوز |
-| `docs/architecture/SYSTEM_ARCHITECTURE.md` | مدل داده، API، رویداد، امنیت، زیرساخت |
-| `docs/quality/MICRO_UX_STANDARDS.md` | فارسی/RTL، شمسی، اعداد، جدول، فرم |
-| `docs/quality/FAILURE_MODE_ANALYSIS.md` | کاتالوگ شکست (FMEA) |
 | `docs/product/RELEASE_PLAN.md` | فازها، گیت‌ها، معیار پذیرش |
-| `docs/operations/IMPLEMENTATION_START_PLAN.md` | برنامه و شاهد گام‌های BR-1 |
-| `docs/product/OPEN_DECISIONS.md` | تصمیم‌های Q-02/04/06/11 (پذیرفته‌شده) |
-| `docs/architecture/ADR/` | ADR-008 صف، ADR-009 ارزش‌گذاری، ADR-010 نگهداشت داده |
+| `docs/product/OPEN_DECISIONS.md` | تصمیم‌های Q-02/04/06/11 |
+| `docs/quality/MICRO_UX_STANDARDS.md` | جدول، فرم، بازخورد، دسترس‌پذیری |
+| `docs/quality/FAILURE_MODE_ANALYSIS.md` | کاتالوگ شکست (FMEA) |
+| `docs/Architecture-02/ADR/` | ADR-001..012 |
 
 ## ساختار مخزن
 
@@ -30,7 +48,7 @@
 apps/shop      فروشگاه مشتری (RTL)
 apps/admin     پنل مدیریت و عملیات
 packages/      domain · application · infrastructure · integrations · ui · formatting · config · testing
-infra/compose  محیط توسعه محلی (PostgreSQL/Redis/MinIO)
+infra/compose  محیط توسعه محلی (PostgreSQL/Redis/S3-compatible)
 scripts/       اسکریپت‌های عملیاتی
 docs/          مستندات (منبع حقیقت دانش پروژه)
 ```
@@ -57,4 +75,4 @@ docker compose -f infra/compose/docker-compose.yml ps
 4. هیچ عدد ظرفیت، عملکرد یا امنیت بدون آزمون ادعا نمی‌شود.
 5. هیچ نرخ/قاعده قانونی هارد‌کد نمی‌شود (پیکربندی نسخه‌دار با تاریخ اعتبار).
 
-جزئیات: `docs/business/PROJECT_DISCOVERY_REPORT.md` بخش اصول.
+جزئیات کامل: `docs/Management-00/PROJECT_MASTER_CONTROL.md` بخش ۲.

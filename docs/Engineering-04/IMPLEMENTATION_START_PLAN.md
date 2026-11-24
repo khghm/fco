@@ -62,7 +62,7 @@ $ docker compose -f infra/compose/docker-compose.yml config --quiet
 
 - فایل‌های سیاست: `.gitignore`, `.gitattributes` (LF), `.editorconfig`
 - ساختار: `apps/shop`, `apps/admin`, `packages/*`, `docs/*`, `infra/compose`, `scripts`
-- مستندات: ۱۳ سند در `docs/` (طبق `docs/README.md`)
+- مستندات: ۲۰ سند در ساختار شماره‌دار `docs/Management-00`…`docs/Engineering-04` + `product/` و `quality/` (طبق `docs/README.md`)
 
 ## ۶. ریسک‌های شروع و پاسخ
 bun خراب → npm · نبود psql → `docker exec` · CRLF → `.gitattributes` · نبود Sandbox درگاه → BR-1 مستقل است · فشار دمو → M1 جایگزین دموی ظاهری.
