@@ -1,6 +1,6 @@
 # تغییرات (CHANGELOG)
 
-> **وضعیت:** زنده · **نسخه:** v1.8 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۳
+> **وضعیت:** زنده · **نسخه:** v1.9 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۳
 > قالب بر پایه Keep a Changelog، تاریخ‌ها شمسی + ISO. هر تغییر در **رفتار، دامنه یا ساختار اسناد** یک ردیف اینجا دارد.
 > شاهد هر نسخه: `git show --stat <commit>`.
 > **مالک تاریخ تغییرات اسناد و مخزن.**
@@ -13,6 +13,27 @@
 - گام ۱۰: CI پایه با خطای عمدی
 - M1: نمایش زنجیره کامل (ورود → Audit → Job → DLQ → Restore)
 - BR-2: آداپتور پیامک، صفحه Audit، UI مشتری، فرایند Worker
+
+---
+
+## [0.13.0] — ۱۴۰۵/۰۹/۰۳ (2026-11-24)
+
+### Added
+- `scripts/ci.sh` — پنج مرحله `lint`، `typecheck`، `test`، `migration`، `build` روی دیتابیس‌های یکبارمصرف؛ `PSQL` برای اجرای مستقیم در CI و پیش‌فرض `docker exec` محلی.
+- `.github/workflows/ci.yml` — همان مراحل با سرویس `postgres:16` و بارگذاری آرتیفکت `dist/`.
+- `dist/fco-schema.sql` + `dist/manifest.json` (ساخت‌شده، gitignore) — بسته schema خودکفا که روی دیتابیس تازه با fingerprint برابر تأیید می‌شود.
+
+### Changed
+- `IMPLEMENTATION_START_PLAN §5.۱۰` (اجرا با شاهد واقعی)، `TEST_STRATEGY §6`، `DECISION_LOG` D-19، هدرهای نسخه.
+- `$ bash scripts/ci.sh all` کامل: `CI PASS | lint · typecheck · test · migration · build` در ۴ دقیقه و ۴۲ ثانیه محلی.
+
+### Fixed
+- مرحله Migration روی کانتینر موقت اجرا می‌شود، چون `down all` نقش مشترک `fco_app` را حذف می‌کند و با شیءهای وابسته در `fco` شکست می‌خورد.
+- آمادگی کانتینر با دو کوئری موفق پایدار سنجیده می‌شود؛ `pg_isready` به سرور موقت مرحله init پاسخ می‌داد و سپس خاموش می‌شد.
+
+### Verified
+- هر پنج مرحله سبز؛ قرمزهای عمدی: CRLF در اسناد → lint، Migration معیوب → typecheck، `grant insert on iam.sessions` → test (exit 3)، تغییر فایل اعمال‌شده → مرحله migration.
+- `build_fingerprint = bundle_fingerprint = 20|38|10|9ae0a0bf2a2c33eeb73e5d5417d6f3e8`.
 
 ---
 

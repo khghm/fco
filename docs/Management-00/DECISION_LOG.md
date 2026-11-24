@@ -1,6 +1,6 @@
 # لاگ تصمیم‌ها (Decision Log)
 
-> **وضعیت:** زنده (Living document) · **نسخه:** v1.8 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۳
+> **وضعیت:** زنده (Living document) · **نسخه:** v1.9 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۳
 > هر تصمیمی که «رفتار» را تغییر می‌دهد اینجا ثبت می‌شود: چه تصمیمی، چرا، چه کسی، تا کی معتبر است.
 > تصمیم معماری بزرگ → ADR مستقل در `Architecture-02/ADR/`. تصمیم دامنه/محصول → `product/OPEN_DECISIONS.md`. این سند **فهرست واحد و تاریخ‌دار همه** است.
 > **مالک فهرست واحد تصمیم‌ها و گزینه‌های رد‌شده.** متن هر ADR در `Architecture-02/ADR/`.
@@ -67,6 +67,7 @@
 | D-14 | **نوشتن Audit و تغییر تنظیم فقط از تابع** (`sys.audit_write`، `sys.setting_set`)؛ INSERT مستقیم اپ روی `sys.audit_log` لغو شد | اعتبارسنجی actor/request_id/دلیل و ثبت Audit اجباری در یک مسیر؛ جلوگیری از تاریخ‌سازی تاریخچه تنظیم | ۱۴۰۵/۰۹/۰۳ | اگر هزینه نوشتن Audit در بار واقعی مشکل شد (گام ۸/۹) |
 | D-15 | **تحویل Outbox با lease و ایدم‌پوتنسی `event_id`** — `sys.outbox_claim` قفل زمانی می‌دهد و `attempts` همان‌جا +۱ می‌شود؛ DLQ پس از `outbox.max_attempts` | دو Worker نباید رویداد مشترک بگیرند؛ تحویل at-least-once با اثر یک‌بار | ۱۴۰۵/۰۹/۰۳ | اگر عمق/سن صف از بودجه گذشت → بازبینی ADR-008 |
 | D-16 | **تمرین بازیابی از کلون دیتابیس با داده نمونه + آزمون منفی پشتیبان مخدوش** (`scripts/db-backup-restore-drill.sh`)؛ GRANTها بازیابی و با نقش `fco_app` سنجیده می‌شوند | برابری اثر انگشت قابل‌اثبات می‌شود؛ «بازیابی خالی»، پشتیبان خراب و ازدست‌رفتن GRANT لو می‌رود؛ دیتابیس کاری آلوده نمی‌شود | ۱۴۰۵/۰۹/۰۳ | ماهانه؛ پیش از Production با offsite و رمزنگاری (Q-11) |
+| D-19 | **CI پایه با پنج مرحله روی دیتابیس‌های یکبارمصرف** — `scripts/ci.sh` (lint/typecheck/test/migration/build) و `.github/workflows/ci.yml`؛ مرحله Migration روی کانتینر `postgres:16-alpine` موقت و Build = بسته `dist/fco-schema.sql` + `manifest.json` با تأیید fingerprint | نبود کد اپ نباید مانع CI شود؛ گیت چک‌سام/بازگشت/بازیابی بسته باید در هر PR اجرا شود؛ دیتابیس توسعه آلوده یا حذف نشود | ۱۴۰۵/۰۹/۰۳ | با نخستین کد TypeScript، ESLint/`tsc`/باندلر به همان مراحل اضافه می‌شود؛ زمان ۴m37s محلی با `docker exec` قابل بهبود است |
 | D-18 | **سقف تلاش و آستانه گیرکردن به‌صورت تنظیم نسخه‌دار** — `job.max_attempts=3` (عبور → `FCO-1042`) و `job.stuck_after_minutes=30`؛ شکست Job بدون rollback با `outcome='failed'` ثبت می‌شود | حلقه بی‌پایان در یک slot و پنهان‌ماندن Worker مرده؛ عددی هارد‌کد نمی‌شود | ۱۴۰۵/۰۹/۰۳ | اگر بیش از ۳ شکست پیاپی دیدیم → هشدار سلامت + بررسی ریشه‌ای؛ تأخیر تصاحب خودکار slot گیرکرده تا وجود Worker واقعی |
 | D-17 | **تلاش دوباره همان slot پس از شکست Job** (بازبینی `sys.job_begin` در `0009`)؛ موفق/درحال‌اجرا مسدود، `failed` با `attempt+1` باز می‌شود | یک خطای گذرا نباید پاک‌سازی نشست را تا slot بعدی عقب بیندازد؛ ضد اجرای هم‌زمان حفظ می‌شود | ۱۴۰۵/۰۹/۰۳ | اگر Jobی بیش از ۳ بار پشت‌سرهم failed شد → هشدار سلامت + بررسی ریشه‌ای |
 
@@ -110,6 +111,7 @@
 | Q-06 | `BUSINESS_WORKFLOWS` (WF پرداخت/حمل)، `API_SPECIFICATION` (Webhook)، `SECURITY_ARCHITECTURE` (امضا/بازپخش) |
 | Q-11 | `DEPLOYMENT_GUIDE`، `BACKUP_AND_RECOVERY`، `SECURITY_ARCHITECTURE` (شبکه/دسترسی) |
 | ADR-007 | `Architecture-02/ADR/ADR-007-auth-session-strategy.md`، `SECURITY_ARCHITECTURE §2/§13`، `DATABASE_DESIGN §3.1`، `packages/infrastructure/migrations/0002_identity_and_authorization.sql`، `packages/infrastructure/tests/0005_identity_negative.sql` |
+| D-19 | `scripts/ci.sh`، `.github/workflows/ci.yml`، `IMPLEMENTATION_START_PLAN §5.۱۰` |
 | D-18 | `packages/infrastructure/migrations/0010_job_limits.sql`، `tests/0010_ops_negative.sql`، `DATABASE_DESIGN §3.11` |
 | D-17 | `packages/infrastructure/migrations/0009_job_retry.sql`، `tests/0010_ops_negative.sql`، `IMPLEMENTATION_START_PLAN §5.۹` |
 | D-16 | `scripts/db-backup-restore-drill.sh`، `BACKUP_AND_RECOVERY §7.1`، `IMPLEMENTATION_START_PLAN §5.۹` |
