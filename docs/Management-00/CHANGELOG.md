@@ -16,6 +16,29 @@
 
 ---
 
+## [0.5.0] — ۱۴۰۵/۰۹/۰۳ (2026-11-24)
+
+### Added
+- `packages/infrastructure/migrations/0001_init_base.sql` (+ `.down.sql`) — Migration پایه: schemaهای `iam` و `sys`، ۱۵ جدول (هویت/نشست، حسابرسی، Outbox/Job/Idempotency، تنظیمات نسخه‌دار) با قیدهای ضد‌باگ و دفترهای تغییرناپذیر.
+- `scripts/db-migrate.sh` — اجرای `up`/`down`/`status`/`verify` روی psql داخل کانتینر، چک‌سام SHA-256، تراکنش اتمیک، رد تغییر فایل اعمال‌شده، الزام مسیر بازگشت.
+
+### Changed
+- `DECISION_LOG` — D-12 (ابزار Migration) ثبت و ردیف اثر تصمیم‌ها برای D-07/D-10/D-12 اضافه شد؛ ردیف تکراری D-09 در بخش اثر تصمیم‌ها اصلاح شد.
+- `DATABASE_DESIGN §5` — نام‌گذاری Migration، جدول وضعیت، چک‌سام، دستورها و ممنوعیت تغییر تاریخی اضافه شد.
+- `IMPLEMENTATION_START_PLAN` — گام ۴ از BR-1 ✅ و شاهد کامل در `§5.۴`.
+
+### Verified
+- اجرا از صفر (DB خالی) → `1 Migration اعمال شد`؛ اجرای دوباره بی‌اثر؛ `verify` سبز.
+- `down all` → ۰ جدول در `iam`/`sys`؛ سپس `up` دوباره سبز.
+- آزمون منفی: mobile نامعتبر، UPDATE/DELETE روی `audit_log`، تغییر payload و DELETE روی `outbox`، نشست با انقضای گذشته — همه رد شدند.
+- تغییر فایل اعمال‌شده → `exit 1`؛ Migration معیوب آزمایشی → `exit 1` و هیچ اثر باقی‌مانده (اتمیک).
+
+### Known gaps
+- `T-MIG-02` (اجرا روی نسخه قبل) تا ساخته‌شدن Migration دوم (BR-2) قابل اجرا نیست.
+- نقش/GRANT کاربر اپ و `iam.otp_requests`/`mfa_factors` عمداً در گام ۵/۶ ساخته می‌شوند.
+
+---
+
 ## [0.4.0] — ۱۴۰۵/۰۹/۰۳ (2026-11-24)
 
 ### Added

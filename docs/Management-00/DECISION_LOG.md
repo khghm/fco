@@ -62,6 +62,7 @@
 | D-09 | **سرویس S3 در استک پایه اختیاری** (`profiles: ["storage"]`) | نبود تصویر قابل‌دریافت نباید راه‌اندازی PostgreSQL/Redis را بشکند؛ BR-1 به S3 نیاز ندارد | ۱۴۰۵/۰۹/۰۳ | ✅ **اعمال شد** — استک پایه سالم بالا آمد؛ پیش از BR-2 بازبینی شود |
 | D-10 | **بدون psql محلی؛ اجرای دستورات DB از طریق `docker exec`** | psql نصب نیست؛ کاهش وابستگی محیط توسعه | ۱۴۰۵/۰۹/۰۲ | — |
 | D-11 | **همه اسناد یک سرصفحه نسخه/تاریخ/وضعیت دارند** | جلوگیری از سند کهنه (اصل ۱۰) | ۱۴۰۵/۰۹/۰۳ | — |
+| D-12 | **Migration با SQL نسخه‌دار و `scripts/db-migrate.sh`** (چک‌سام SHA-256، `sys.schema_migrations`) | SQL صریح و قابل‌بازبینی؛ بدون افزودن ابزار npm پیش از اسکلت اپ (D-05)؛ مسیر بازگشت الزامی | ۱۴۰۵/۰۹/۰۳ | ✅ در BR-1 گام ۴ اجرا شد؛ اگر گام ۵/۱۰ ابزار Node لازم شد، ADR کوتاه |
 
 ---
 
@@ -103,6 +104,7 @@
 | Q-04 | `DATABASE_DESIGN` (fin_tax_rule نسخه‌دار)، `API_SPECIFICATION` (فاکتور)، `SECURITY_ARCHITECTURE` (نگهداشت سند مالی) |
 | Q-06 | `BUSINESS_WORKFLOWS` (WF پرداخت/حمل)، `API_SPECIFICATION` (Webhook)، `SECURITY_ARCHITECTURE` (امضا/بازپخش) |
 | Q-11 | `DEPLOYMENT_GUIDE`، `BACKUP_AND_RECOVERY`، `SECURITY_ARCHITECTURE` (شبکه/دسترسی) |
-| D-09 | **سرویس S3 در استک پایه اختیاری** (`profiles: ["storage"]`) | نبود تصویر قابل‌دریافت نباید راه‌اندازی PostgreSQL/Redis را بشکند؛ BR-1 به S3 نیاز ندارد | ۱۴۰۵/۰۹/۰۳ | ✅ **اعمال شد** — استک پایه سالم بالا آمد؛ پیش از BR-2 بازبینی شود |
+| D-09 | `infra/compose/docker-compose.yml` (profile)، `.env.example`، `IMPLEMENTATION_START_PLAN §5.۲` |
+| D-07، D-10، D-12 | `DATABASE_DESIGN §5` (سیاست Migration)، `packages/infrastructure/migrations/*`، `scripts/db-migrate.sh`، `IMPLEMENTATION_START_PLAN §5.۴` |
 
 > **قاعده:** هیچ تصمیمی بدون ردیف در بخش ۷ بسته نمی‌شود؛ تصمیم بدون اثر مستند = تصمیم اجرانشده.

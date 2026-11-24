@@ -285,7 +285,10 @@ RETURNING *;
 
 | قاعده | جزئیات |
 |---|---|
-| ابزار | Migration نسخه‌دار در `packages/infrastructure/migrations` با شماره ترتیبی و چک‌سام |
+| ابزار | فایل SQL نسخه‌دار در `packages/infrastructure/migrations` با نام `NNNN_slug.sql` + `NNNN_slug.down.sql`؛ اجرا با `scripts/db-migrate.sh` (D-12) |
+| ثبت وضعیت | `sys.schema_migrations` (version، name، checksum، applied_at)؛ هر Migration در یک تراکنش (`--single-transaction`) |
+| تغییر تاریخی ممنوع | اجرای فایلِ اعمال‌شده با چک‌سام متفاوت رد می‌شود؛ اصلاح = Migration جدید، نه ویرایش گذشته |
+| دستورها | `up` · `down [n|all]` · `status` · `verify` (تشخیص drift) |
 | سبک | **Expand → Migrate → Contract**؛ هر مرحله جدا و قابل‌اجرا روی نسخه قبل |
 | ممنوع | `DROP COLUMN` در همان انتشاری که کد قدیمی حذف می‌شود؛ قفل طولانی؛ بازنویسی جدول بزرگ |
 | الزام | هر Migration باید `up` **و** مسیر بازگشت/سازگاری داشته باشد؛ روی داده واقعی‌نما آزمون شود |
