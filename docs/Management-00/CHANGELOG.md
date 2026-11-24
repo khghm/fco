@@ -1,6 +1,6 @@
 # تغییرات (CHANGELOG)
 
-> **وضعیت:** زنده · **نسخه:** v1.4 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۳
+> **وضعیت:** زنده · **نسخه:** v1.5 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۳
 > قالب بر پایه Keep a Changelog، تاریخ‌ها شمسی + ISO. هر تغییر در **رفتار، دامنه یا ساختار اسناد** یک ردیف اینجا دارد.
 > شاهد هر نسخه: `git show --stat <commit>`.
 > **مالک تاریخ تغییرات اسناد و مخزن.**
@@ -10,9 +10,35 @@
 ## [Unreleased]
 
 ### Planned
-- گام ۸: Outbox/Queue Port/Worker/DLQ و Job پاک‌سازی نشست
-- گام ۹: رصد و آزمون Restore
+- گام ۹: رصد، پشتیبان و آزمون Restore واقعی
+- گام ۱۰: CI پایه با خطای عمدی
 - BR-2: آداپتور پیامک، صفحه Audit و UI مشتری
+
+---
+
+## [0.9.0] — ۱۴۰۵/۰۹/۰۳ (2026-11-24)
+
+### Added
+- `packages/infrastructure/migrations/0006_password_change_actor.sql` (+ `.down.sql`) — عامل واقعی تغییر رمز پارامتر جداست و `actor_id` در Audit همان عامل است؛ کاربر هدف در `entity_id` و `after.target_user_id` می‌ماند.
+- `packages/infrastructure/migrations/0007_outbox_queue.sql` (+ `.down.sql`) — `sys.outbox_emit`، `sys.outbox_claim` (SKIP LOCKED + lease)، `sys.outbox_complete`/`fail` (انتقال به DLQ پس از سقف)، `sys.inbox_consume` ایدم‌پوتنت و `sys.dlq_list` با مجوز.
+- `packages/infrastructure/tests/0009_outbox_negative.sql` — اعتبارسنجی رویداد، lease/ضدتحویل هم‌زمان، مسیر شکست تا DLQ، مصرف دوباره و مجوز DLQ.
+
+### Changed
+- دو تنظیم نسخه‌دار `outbox.lease_seconds` و `outbox.max_attempts` (بدون عدد هارد‌کد در کد).
+- `tests/0008` — دو سناریوی جدید برای actor واقعی و self-service تغییر رمز + عامل ناموجود.
+- `DECISION_LOG` D-15، `DATABASE_DESIGN §3.11`، `TEST_STRATEGY §6`، `IMPLEMENTATION_START_PLAN §3/§5.۸/§7`.
+
+### Fixed
+- Audit تغییر رمز، عامل عملیات را ثبت می‌کند نه کاربر هدف؛ پیش از این بازنشانی رمز توسط مدیر به نام خود کارمند ثبت می‌شد.
+
+### Verified
+- `down all` → `up` از صفر: ۷ Migration؛ `verify` سبز.
+- هر چهار مجموعه `0005/0007/0008/0009` سبز؛ `0009` → `ALL STEP-8 NEGATIVE CASES PASSED`.
+- اثبات آزمون: گرانت `INSERT` روی `sys.outbox` به `fco_app` ⇒ `FAIL APP-ROLE` و `exit 3`؛ پس از `revoke` سبز.
+
+### Known gaps
+- فرایند Worker (Node)، پایش عمق/سن صف و Job پاک‌سازی نشست در گام ۹.
+- بازگشت `0007` تاریخچه تنظیم `outbox.*` را حفظ می‌کند (حذف نسخه ممنوع)؛ بذر آن فقط در نبود نسخه اجرا می‌شود.
 
 ---
 

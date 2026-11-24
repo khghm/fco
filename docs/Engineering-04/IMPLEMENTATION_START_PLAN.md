@@ -1,6 +1,6 @@
 # برنامه شروع پیاده‌سازی — BR-1 گام‌به‌گام
 
-> **وضعیت:** تأییدشده · **نسخه:** v1.4 · **تاریخ:** ۱۴۰۵/۰۹/۰۳
+> **وضعیت:** تأییدشده · **نسخه:** v1.5 · **تاریخ:** ۱۴۰۵/۰۹/۰۳
 > **خروجی ۱۰ از ۱۰** — وضعیت اجرا در انتهای همین سند ثبت می‌شود.
 > **مالک گام‌های BR-1 و تنها محل ثبت «انجام شد» با شاهد واقعی.**
 
@@ -40,7 +40,7 @@
 | ۵ | هویت و مجوز (ورود کارکنان، سیاست رمز، نشست، RBAC) | آزمون منفی دسترسی | ✅ `T-SEC-01/03/05/06` سبز + نقش اپ بدون DDL (§5.۵) |
 | ۶ | OTP مشتری (توسعه: Spool) | انقضا/نرخ/ضد Brute Force | ✅ `T-SEC-12` + ۱۲ سناریوی منفی؛ Spool با پیش‌فرض خاموش (D-13، §5.۶) |
 | ۷ | Audit و تنظیمات نسخه‌دار | رکورد قابل‌جست‌وجو + مجوز تغییر | ✅ `T-PLT-04/05` + ۱۷ سناریوی منفی؛ فقط مسیر تابع (§5.۷) |
-| ۸ | Outbox/Queue Port/Worker/DLQ | اجرای دوبار بدون اثر تکراری | ⏳ |
+| ۸ | Outbox/Queue Port/Worker/DLQ | اجرای دوبار بدون اثر تکراری | ✅ `T-PLT-01/02` + lease/برای تست؛ مسیر DLQ (§5.۸) |
 | ۹ | رصد و پشتیبان + آزمون Restore | بازیابی مستند روی محیط جدا | ⏳ |
 | ۱۰ | CI پایه (lint/typecheck/test/migration) | CI برای خطای عمدی قرمز شود | ⏳ |
 
@@ -398,8 +398,52 @@ ALL STEP-7 NEGATIVE CASES PASSED                          (exit 0)
 
 **محدودیت‌ها:** «تلاش ردشده» (403/429) در Audit نمی‌آید چون Exception تراکنش را بازمی‌گرداند؛ رفع آن با Logger/Outbox بیرونی در گام ۸ است و در `SECURITY_ARCHITECTURE §13` ثبت شد. صفحه Audit، Export و جست‌وجوی متنی در BR-2/BR-3 می‌آید؛ این گام فقط مسیر ثبت و جست‌وجوی ساختاریافته را می‌بندد.
 
+### ۵.۸ گام ۸ — Outbox، Queue Port، Worker و DLQ (۱۴۰۵/۰۹/۰۳)
+
+**اصلاح بازبینی گام ۷ (`0006`):** Audit تغییر رمز actor را برابر کاربر هدف می‌گذاشت. اکنون عامل واقعی پارامتر جداست و کاربر هدف در `entity_id` می‌ماند:
+
+```
+PASS AUDIT | تغییر رمز: actor=مدیر، entity=کاربر هدف
+PASS AUDIT | self-service: actor=entity=کاربر
+PASS AUDIT | عامل ناموجود → FCO-1005
+```
+
+**مدل گام ۸ (`0007_outbox_queue`):** تولید فقط با `sys.outbox_emit` در تراکنش کسب‌وکار؛ تحویل با `sys.outbox_claim` روی `FOR UPDATE SKIP LOCKED` **به‌همراه lease** (۶۰ ثانیه، نسخه‌دار) تا دو Worker هم‌زمان یک رویداد نگیرند؛ `attempts` در همان claim +۱ می‌شود؛ پس از `outbox.max_attempts` رویداد به DLQ می‌رود و دیگر تحویل نمی‌شود؛ مصرف با `sys.inbox_consume` و کلید `event_id` ایدم‌پوتنت است؛ فهرست DLQ مجوز `platform.dlq.inspect` می‌خواهد.
+
+```
+$ bash scripts/db-migrate.sh down all
+7 Migration بازگشت داده شد.                              (exit 0)
+
+$ bash scripts/db-migrate.sh up                           (از صفر)
+→ اعمال 0001_init_base … 0007_outbox_queue
+7 Migration اعمال شد.                                    (exit 0)
+```
+
+**آزمون‌ها (`tests/0009_outbox_negative.sql`، خروجی واقعی):**
+
+```
+PASS OUTBOX | نام رویداد نامعتبر → FCO-1030
+PASS OUTBOX | payload غیرشیء → FCO-1030
+PASS OUTBOX | aggregate_type خالی → FCO-1030
+PASS OUTBOX | تحویل اول انجام شد (attempts=1)
+PASS OUTBOX | lease مانع تحویل هم‌زمان شد
+PASS OUTBOX | رویداد تکمیل‌شده دوباره تحویل نشد
+PASS DLQ | پس از ۵ تلاش dead_letter شد و دیگر تحویل نمی‌شود
+PASS INBOX | تحویل دوباره اثر تکراری نداد (کلید = event_id)
+PASS DLQ | بدون platform.dlq.inspect → FCO-1003
+PASS DLQ | فهرست با مجوز ۱ ردیف داد
+PASS APP-ROLE | درج مستقیم Outbox مسدود شد · تولید فقط از تابع
+ALL STEP-8 NEGATIVE CASES PASSED                          (exit 0)
+```
+
+**اثبات کارکرد آزمون:** با `grant insert on sys.outbox` و `grant usage on sequence sys.outbox_id_seq` به `fco_app` همان فایل با `FAIL APP-ROLE: درج مستقیم Outbox مجاز بود` و `exit 3` قرمز شد؛ پس از `revoke` دوباره سبز شد. (اجرای اول sabotage با گرانت جدول تنها، گمراه‌کننده بود چون نبود دسترسی sequence هم مانع درج می‌شد — همین نکته ثبت شد.)
+
+**گیت‌های قبلی:** `down all` → `up` از صفر **۷ Migration**؛ هر چهار مجموعه `0005/0007/0008/0009` سبز؛ `verify` سبز.
+
+**محدودیت‌ها:** فرایند Worker (Node) و پایش عمق صف/سن پیام در گام ۹ می‌آید؛ این گام قرارداد DB و ایدم‌پوتنسی را می‌بندد. بازگشت `0007` تاریخچه `outbox.*` را پاک نمی‌کند (حذف نسخه تنظیم ممنوع است) و بذر آن فقط در نبود نسخه اجرا می‌شود.
+
 ## ۶. ریسک‌های شروع و پاسخ
 bun خراب → npm · نبود psql → `docker exec` · CRLF → `.gitattributes` · نبود Sandbox درگاه → BR-1 مستقل است · فشار دمو → M1 جایگزین دموی ظاهری.
 
 ## ۷. گام بعدی
-گام ۸: Outbox ترانزاکشی، `Queue Port`، Worker ایدم‌پوتنت و DLQ (شامل Job پاک‌سازی نشست)، سپس گام ۹ (رصد/Restore). آداپتور پیامک، صفحه Audit و UI مشتری در BR-2.
+گام ۹: رصد و پشتیبان + آزمون Restore واقعی (شامل Job پاک‌سازی نشست و پایش عمق صف)، سپس گام ۱۰ (CI پایه با خطای عمدی). آداپتور پیامک، صفحه Audit و UI مشتری در BR-2.

@@ -259,6 +259,8 @@ sys.audit_log(id bigserial, actor_id uuid, actor_ip inet, action text,
 
 **مسیرهای مجاز (BR-1 گام ۷):** نوشتن Audit فقط با `sys.audit_write` (actor معتبر، request_id اجباری، حداقل یکی از before/after) و جست‌وجو با `sys.audit_search` (مجوز `iam.audit.read`، سقف ۱۰۰ ردیف)؛ تغییر تنظیم فقط با `sys.setting_set` (مجوز `platform.setting.write`، دلیل و تاریخ اعتبار غیرگذشته، Audit هم‌تراکنش). `setting_versions` فقط‌افزودنی و ترتیبی است: نسخه جدید بازه قبلی را می‌بندد و تغییر مقدار/حذف نسخه با تریگر رد می‌شود.
 
+**تحویل Outbox (BR-1 گام ۸):** `sys.outbox_claim` با `FOR UPDATE SKIP LOCKED` و lease نسخه‌دار (`outbox.lease_seconds`) تحویل می‌دهد و `attempts` را همان‌جا +۱ می‌کند؛ `sys.outbox_fail` تا `outbox.max_attempts` تلاش می‌دهد و سپس `dead_lettered_at` را پر می‌کند؛ `sys.inbox_consume` با کلید `event_id` اثر تکراری را حذف می‌کند.
+
 **Outbox (ADR-008):** Worker با
 ```sql
 UPDATE sys.outbox SET attempts = attempts + 1

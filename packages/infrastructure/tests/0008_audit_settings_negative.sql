@@ -256,17 +256,48 @@ begin
   end if;
   raise notice 'PASS AUDIT | تخصیص نقش خودکار Audit شد';
 
+  -- مدیر رمز کارمند را بازنشانی می‌کند: actor باید مدیر باشد، نه کاربر هدف
   perform iam.set_password_hash('66666666-6666-6666-6666-666666666666'::uuid,
                                 '$argon2id$v=19$m=65536,t=3,p=4$fixture$fixture',
+                                '55555555-5555-5555-5555-555555555555'::uuid,
                                 'req-r2');
 
   select count(*) into v_audit from sys.audit_search(
     '55555555-5555-5555-5555-555555555555'::uuid,
-    p_action => 'password.change');
+    p_action => 'password.change')
+   where actor_id = '55555555-5555-5555-5555-555555555555'::uuid
+     and entity_id = '66666666-6666-6666-6666-666666666666'::uuid;
   if v_audit <> 1 then
-    raise exception 'FAIL AUDIT: تغییر رمز Audit نشد (% ردیف)', v_audit;
+    raise exception 'FAIL AUDIT: actor واقعی تغییر رمز ثبت نشد (% ردیف)', v_audit;
   end if;
-  raise notice 'PASS AUDIT | تغییر رمز خودکار Audit شد';
+  raise notice 'PASS AUDIT | تغییر رمز: actor=مدیر، entity=کاربر هدف';
+
+  -- self-service: actor و هدف یکی هستند
+  perform iam.set_password_hash('66666666-6666-6666-6666-666666666666'::uuid,
+                                '$argon2id$v=19$m=65536,t=3,p=4$fixture$fixture',
+                                '66666666-6666-6666-6666-666666666666'::uuid,
+                                'req-r3');
+
+  select count(*) into v_audit from sys.audit_search(
+    '55555555-5555-5555-5555-555555555555'::uuid,
+    p_action => 'password.change')
+   where actor_id = '66666666-6666-6666-6666-666666666666'::uuid
+     and entity_id = '66666666-6666-6666-6666-666666666666'::uuid;
+  if v_audit <> 1 then
+    raise exception 'FAIL AUDIT: self-service actor ثبت نشد (% ردیف)', v_audit;
+  end if;
+  raise notice 'PASS AUDIT | self-service: actor=entity=کاربر';
+
+  -- عامل ناموجود نباید رمز را تغییر دهد
+  begin
+    perform iam.set_password_hash('66666666-6666-6666-6666-666666666666'::uuid,
+                                  '$argon2id$v=19$m=65536,t=3,p=4$fixture$fixture',
+                                  '00000000-0000-0000-0000-000000000000'::uuid,
+                                  'req-r4');
+    raise exception 'FAIL AUDIT: عامل ناموجود پذیرفته شد';
+  exception when sqlstate '28000' then
+    raise notice 'PASS AUDIT | عامل ناموجود → %', sqlerrm;
+  end;
 end $$;
 
 -- --- فیلتر زمانی جست‌وجو ------------------------------------------------------

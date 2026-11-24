@@ -170,7 +170,8 @@ begin
   v_sid := iam.start_session('11111111-1111-1111-1111-111111111111'::uuid,
                              decode(repeat('cd', 32), 'hex'), '127.0.0.1'::inet, 'psql-test');
   perform iam.set_password_hash('11111111-1111-1111-1111-111111111111'::uuid,
-                                '$argon2id$v=19$m=65536,t=3,p=4$fixture$fixture');
+                                '$argon2id$v=19$m=65536,t=3,p=4$fixture$fixture',
+                                '11111111-1111-1111-1111-111111111111'::uuid);
 
   if exists (select 1 from iam.sessions where id = v_sid and revoked_at is null) then
     raise exception 'FAIL T-SEC-05: نشست پس از تغییر رمز معتبر ماند';
@@ -315,7 +316,8 @@ do $$
 begin
   begin
     perform iam.set_password_hash('22222222-2222-2222-2222-222222222222'::uuid,
-                                  'plain-text-password-value-1234');
+                                  'plain-text-password-value-1234',
+                                  '22222222-2222-2222-2222-222222222222'::uuid);
     raise exception 'FAIL HASH: هش نامعتبر ذخیره شد';
   exception when sqlstate '22023' then
     raise notice 'PASS HASH | قالب نامعتبر → %', sqlerrm;
