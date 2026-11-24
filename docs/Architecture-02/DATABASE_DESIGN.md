@@ -78,7 +78,13 @@ iam.sessions(id uuid pk, user_id uuid not null, token_hash bytea unique,
   revoked_at timestamptz, revoke_reason text)
 iam.otp_requests(id, mobile, code_hash, purpose, attempts int, expires_at,
   consumed_at, request_ip inet)  -- ایندکس (mobile, created_at)
+iam.mfa_factors(id, user_id, kind in ('totp','recovery_code'),
+  secret_ciphertext bytea, label, confirmed_at, last_used_at, disabled_at)
+  -- یک TOTP فعال در هر لحظه؛ راز رمزنگاری‌شده، نه خام
+iam.sod_role_conflicts(rule_code, role_a, role_b)  -- ترکیب نقش ممنوع (SoD-7)
 ```
+- `0002` (BR-1 گام ۵) این دو جدول و پرچم `roles.requires_mfa` را اضافه کرد؛ ورود بدون MFA تأییدشده برای نقش حساس در تابع `iam.start_session` مسدود است.
+- تفکیک Maker/Checker در DB با `sys.assert_separation` و تریگر ترکیب نقش؛ جدول تأییدهای دامنه در BR-2.
 - `token_hash` هرگز توکن خام نیست؛ نشست با هش جست‌وجو می‌شود.
 - `failed_attempts`/`locked_until` برای قفل تدریجی (`FR-1-07`).
 

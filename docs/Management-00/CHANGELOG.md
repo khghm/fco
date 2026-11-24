@@ -1,6 +1,6 @@
 # تغییرات (CHANGELOG)
 
-> **وضعیت:** زنده · **نسخه:** v1.1 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۳
+> **وضعیت:** زنده · **نسخه:** v1.2 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۳
 > قالب بر پایه Keep a Changelog، تاریخ‌ها شمسی + ISO. هر تغییر در **رفتار، دامنه یا ساختار اسناد** یک ردیف اینجا دارد.
 > شاهد هر نسخه: `git show --stat <commit>`.
 > **مالک تاریخ تغییرات اسناد و مخزن.**
@@ -10,9 +10,32 @@
 ## [Unreleased]
 
 ### Planned
-- پیاده‌سازی BR-1 گام ۴: Migration پایه (IAM/Audit/Outbox/Setting)
-- گام ۵: هویت و مجوز با آزمون منفی
-- تأیید ADR-007 توسط TECH (مسدودکننده گام ۵)
+- گام ۶: OTP مشتری (Spool توسعه) با انقضا/نرخ/ضد Brute Force
+- گام ۷: Audit و تنظیمات نسخه‌دار
+- گام ۸: Outbox/Queue Port/Worker/DLQ و Job پاک‌سازی نشست
+
+---
+
+## [0.6.0] — ۱۴۰۵/۰۹/۰۳ (2026-11-24)
+
+### Added
+- `docs/Architecture-02/ADR/ADR-007-auth-session-strategy.md` — ADR-007 نهایی شد: نشست کوکی سمت سرور در `iam.sessions` (منبع حقیقت) + MFA TOTP اجباری برای نقش حساس؛ JWT بی‌وضعیت و `localStorage` رد شدند.
+- `packages/infrastructure/migrations/0002_identity_and_authorization.sql` (+ `.down.sql`) — `iam.mfa_factors`، `roles.requires_mfa`، `iam.common_passwords`، `iam.sod_role_conflicts` + تریگر، بذر ۱۱ نقش/۱۷ مجوز/۳۲ نگاشت، ۹ تنظیم `auth.*` نسخه‌دار، توابع `iam.authorize`/`start_session`/`authenticate`/`revoke_*`/`set_password_hash`/`register_login_*`/`grant_role`/`sys.assert_separation`، نقش DB `fco_app` با GRANT حداقلی.
+- `packages/infrastructure/tests/0005_identity_negative.sql` — مجموعه آزمون منفی `T-SEC-01/03/05/06` + سیاست رمز + قفل ورود + دسترسی نقش اپ؛ در پایان `rollback`.
+
+### Changed
+- `DECISION_LOG` — ADR-007 به «پذیرفته و اجراشده» تغییر کرد، از فهرست تصمیم‌های معلق حذف شد و ردیف اثر آن اضافه شد.
+- `SECURITY_ARCHITECTURE §2/§13`، `DATABASE_DESIGN §3.1`، `TEST_STRATEGY §6`، `ADR/README` و `IMPLEMENTATION_START_PLAN §3/§5.۵/§7` با وضعیت واقعی گام ۵ هم‌راستا شدند.
+
+### Verified
+- `up` روی ۰۰۰۱ موجود → `1 Migration اعمال شد`؛ `verify` سبز؛ ۱۱ نقش، ۱۷ مجوز، ۳۲ نگاشت، ۲ قاعده SoD، ۹ تنظیم.
+- `down all` → ۰ جدول در `iam`/`sys` و حذف نقش `fco_app`؛ سپس `up` از صفر → ۲ Migration و آزمون‌های منفی سبز.
+- `T-MIG-02`: اجرای `0002` روی داده نسخه قبل → کاربر/نقش/تنظیم حفظ شد و `requires_mfa` نقش موجود ارتقا یافت.
+- آزمون منفی موفق (`ALL STEP-5 NEGATIVE CASES PASSED`) و **آزمون اثبات آزمون**: با غیرفعال‌کردن تریگر SoD، همان فایل با `FAIL T-SEC-03` و `exit 3` قرمز شد و پس از فعال‌سازی دوباره سبز شد.
+
+### Known gaps
+- لایه HTTP/use-case اپ وجود ندارد؛ نگاشت `42501→403 FCO-1003` و `28000→401 FCO-1001` هنوز در endpoint آزموده نشده است.
+- هش Argon2id و UI ثبت TOTP در BR-2؛ Job پاک‌سازی نشست در گام ۸؛ `T-SEC-02/04/07` باز.
 
 ---
 

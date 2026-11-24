@@ -87,7 +87,7 @@ docs/
 | [`quality/MICRO_UX_STANDARDS.md`](quality/MICRO_UX_STANDARDS.md) | قانون تعامل: جدول، فیلتر، فرم، بازخورد، دسترس‌پذیری |
 | [`quality/FAILURE_MODE_ANALYSIS.md`](quality/FAILURE_MODE_ANALYSIS.md) | کاتالوگ شکست `FM-*` (انسانی/مالی/عملیاتی/فنی/امنیتی/زیرساخت/خاموش) |
 
-**جمع:** ۲۰ سند ساختار هدف + ۳ سند پشتیبان (`PROJECT_DISCOVERY_REPORT`، `ROLE_WORKFLOW_MATRIX`، `IMPLEMENTATION_START_PLAN`) + ۶ سند تصمیم/کیفیت (`product/`، `quality/`) + ۴ فایل ADR.
+**جمع:** ۲۰ سند ساختار هدف + ۳ سند پشتیبان (`PROJECT_DISCOVERY_REPORT`، `ROLE_WORKFLOW_MATRIX`، `IMPLEMENTATION_START_PLAN`) + ۶ سند تصمیم/کیفیت (`product/`، `quality/`) + ۵ فایل ADR.
 
 ---
 

@@ -1,6 +1,6 @@
 # برنامه شروع پیاده‌سازی — BR-1 گام‌به‌گام
 
-> **وضعیت:** تأییدشده · **نسخه:** v1.0 · **تاریخ:** ۱۴۰۵/۰۹/۰۲
+> **وضعیت:** تأییدشده · **نسخه:** v1.2 · **تاریخ:** ۱۴۰۵/۰۹/۰۳
 > **خروجی ۱۰ از ۱۰** — وضعیت اجرا در انتهای همین سند ثبت می‌شود.
 > **مالک گام‌های BR-1 و تنها محل ثبت «انجام شد» با شاهد واقعی.**
 
@@ -25,7 +25,7 @@
 |---|---|---|
 | ۱ | تأیید ۱۰ سند طراحی | ✅ |
 | ۲ | تصمیم Q-02/04/06/11 | ✅ پذیرفته‌شده (`product/OPEN_DECISIONS.md`) |
-| ۳ | ADR-008/009/010 | ✅ پذیرفته‌شده |
+| ۳ | ADR-007/008/009/010 | ✅ پذیرفته‌شده (ADR-007 در ۱۴۰۵/۰۹/۰۳ نهایی شد) |
 | ۴ | مدیر بسته | ✅ npm |
 | ۵ | محیط Production | ⏳ Q-11 پذیرفته؛ سرور مشخص نشده (مانع BR-1 نیست) |
 
@@ -37,7 +37,7 @@
 | ۲ | اسکلت پوشه‌ها (`apps/`, `packages/`, `docs/`, `infra/`, `scripts/`) | ساختار قابل‌مشاهده و کامیت‌شده | ✅ انجام شد |
 | ۳ | محیط محلی Docker (PostgreSQL/Redis + S3 اختیاری) + فایل نمونه محیط | `compose config` معتبر + سرویس‌های سالم | ✅ PostgreSQL 16.16 و Redis 7.4.12 هر دو healthy (شاهد: §5.۲) |
 | ۴ | Migration و اسکیمای پایه (IAM/Audit/Outbox/Setting) | اجرا از صفر + rollback | ✅ ۱۵ جدول در `iam`/`sys`؛ از صفر، بازگشت، drift و اتمیک بودن آزمون شد (§5.۴) |
-| ۵ | هویت و مجوز (ورود کارکنان، سیاست رمز، نشست، RBAC) | آزمون منفی دسترسی | ⏳ |
+| ۵ | هویت و مجوز (ورود کارکنان، سیاست رمز، نشست، RBAC) | آزمون منفی دسترسی | ✅ `T-SEC-01/03/05/06` سبز + نقش اپ بدون DDL (§5.۵) |
 | ۶ | OTP مشتری (توسعه: Spool) | انقضا/نرخ/ضد Brute Force | ⏳ |
 | ۷ | Audit و تنظیمات نسخه‌دار | رکورد قابل‌جست‌وجو + مجوز تغییر | ⏳ |
 | ۸ | Outbox/Queue Port/Worker/DLQ | اجرای دوبار بدون اثر تکراری | ⏳ |
@@ -204,8 +204,82 @@ $ select u.mobile, r.key, count(distinct p.key) perms, … active_sessions …
 
 **تصمیم‌های مرتبط:** D-10 (psql از طریق `docker exec`) و D-12 (ابزار Migration) در `DECISION_LOG` ثبت شدند.
 
+### ۵.۵ گام ۵ — هویت و مجوز (۱۴۰۵/۰۹/۰۳)
+
+مبنای تصمیم: **ADR-007 پذیرفته شد** (کوکی `HttpOnly` + نشست سرور در `iam.sessions`، MFA TOTP برای نقش حساس).
+
+محدوده `0002_identity_and_authorization`: `iam.mfa_factors`، پرچم `roles.requires_mfa`، بذر ۱۱ نقش و ۱۷ مجوز گروه `iam`/`platform`/`export`، `iam.sod_role_conflicts` + تریگر، سیاست رمز/نشست/قفل به‌صورت `sys.setting_versions`، توابع `iam.authorize`/`start_session`/`authenticate`/`revoke_session`/`set_password_hash`/`register_login_*`/`grant_role` و نقش `fco_app` با حداقل GRANT.
+
+عمداً بیرون: هش Argon2id (لایه اپ)، UI ثبت TOTP، `iam.otp_requests` (گام ۶)، جدول تأییدهای Maker/Checker (BR-2).
+
+```
+$ bash scripts/db-migrate.sh up
+→ اعمال 0002_identity_and_authorization
+1 Migration اعمال شد.                                   (exit 0)
+
+$ bash scripts/db-migrate.sh verify
+چک‌سام همه Migration های اعمال‌شده درست است.              (exit 0)
+
+$ select count(*) ...
+11 roles | 17 permissions | 32 role-grant | 2 sod-rules | 9 auth-settings
+
+$ bash scripts/db-migrate.sh down all
+← بازگشت 0002_identity_and_authorization
+← بازگشت 0001_init_base
+2 Migration بازگشت داده شد.                              (exit 0)
+
+$ select ... from information_schema.tables where table_schema in ('iam','sys');
+0|0                                                      (۰ جدول، نقش اپ حذف‌شده)
+
+$ bash scripts/db-migrate.sh up                            (از صفر)
+→ اعمال 0001_init_base
+→ اعمال 0002_identity_and_authorization
+2 Migration اعمال شد.                                    (exit 0)
+```
+
+**آزمون منفی دسترسی (`packages/infrastructure/tests/0005_identity_negative.sql`، اجرای واقعی):**
+
+```
+PASS T-SEC-01 | بدون مجوز → FCO-1003: مجوز iam.audit.read برای این کاربر وجود ندارد
+PASS T-SEC-01 | با مجوز iam.audit.read عبور کرد
+PASS T-SEC-01 | مجوز تعریف‌نشده رد شد
+PASS T-SEC-03 | SoD-7 (ترکیب نقش) → FCO-1004: … ترکیب نقش‌های R-FIN و R-SYS … مجاز نیست
+PASS T-SEC-03 | SoD-4 (تخصیص به خود) → FCO-1004
+PASS T-SEC-03 | Maker=Checker → FCO-1004 / Maker≠Checker عبور کرد
+PASS T-SEC-06 | بدون MFA → FCO-1006: ورود نقش حساس بدون MFA تأییدشده مسدود است
+PASS T-SEC-06 | پس از تأیید TOTP نشست ساخته شد (a837bb54-…)
+PASS T-SEC-05 | نشست معتبر شناسایی شد → پس از ابطال → FCO-1001: نشست ابطال شده است
+PASS T-SEC-05 | تغییر رمز همه نشست‌ها را باطل کرد
+PASS POLICY   | رمز کوتاه / رمز رایج / تنوع ناکافی → FCO-1007، رمز مطابق سیاست عبور کرد
+PASS LOCK     | پس از ۵ تلاش قفل تا 2026-11-24 11:37:20+00
+PASS APP-ROLE | DDL مسدود · درج Audit مجاز · تغییر/حذف Audit مسدود · Outbox مستقیم مسدود
+ALL STEP-5 NEGATIVE CASES PASSED                          (exit 0)
+```
+
+**اثبات کارکرد آزمون (کنترل آگاهانه برداشته شد):**
+
+```
+$ alter table iam.user_roles disable trigger user_roles_sod_conflict;
+$ <همان فایل آزمون>
+ERROR: FAIL T-SEC-03: ترکیب R-SYS + R-FIN پذیرفته شد      (exit 3)
+
+$ alter table iam.user_roles enable trigger user_roles_sod_conflict;
+$ <همان فایل آزمون>
+ALL STEP-5 NEGATIVE CASES PASSED                          (exit 0)
+```
+
+**`T-MIG-02` — اجرا روی نسخه قبل با داده نمونه:** ابتدا فقط `0001` اعمال و یک کاربر/نقش/تنظیم نمونه ساخته شد؛ سپس `0002` اجرا شد:
+
+```
+09120000009|کارمند نسخه قبل|R-FIN|t|11|{"fa": "فروشگاه"}
+```
+
+یعنی داده قدیمی دست‌نخورده ماند، نشست/رمز نسخه قبل معتبر نماند (بدون رکورد نشست) و پرچم `requires_mfa` نقش موجود از `false` به `true` ارتقا یافت (بذر `on conflict do update`).
+
+**محدودیت‌های اعلام‌شده:** لایه HTTP و use-case اپ هنوز نوشته نشده؛ آزمون‌ها در سطح توابع امنیتی و نقش DB اجرا شدند و نگاشت `42501→403`/`28000→401` در نخستین endpoint آزموده می‌شود. هش Argon2id در لایه اپ ساخته می‌شود (این‌جا فقط هش و سیاست). `fco_app` نقش `NOLOGIN` است؛ رمز آن باید از محیط/مخزن اسرار تزریق شود. `T-SEC-02/04/07` باز است.
+
 ## ۶. ریسک‌های شروع و پاسخ
 bun خراب → npm · نبود psql → `docker exec` · CRLF → `.gitattributes` · نبود Sandbox درگاه → BR-1 مستقل است · فشار دمو → M1 جایگزین دموی ظاهری.
 
 ## ۷. گام بعدی
-گام ۴: Migration پایه و جدول‌های IAM/Audit/Outbox/Setting، سپس گام ۵ (هویت و مجوز) با آزمون منفی.
+گام ۶: OTP مشتری با Spool توسعه (انقضا/نرخ/ضد Brute Force)، سپس گام ۷ (Audit و تنظیمات)، گام ۸ (Outbox/Queue/DLQ) و گام ۹ (رصد/Restore).

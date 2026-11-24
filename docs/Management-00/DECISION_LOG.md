@@ -1,6 +1,6 @@
 # لاگ تصمیم‌ها (Decision Log)
 
-> **وضعیت:** زنده (Living document) · **نسخه:** v1.1 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۳
+> **وضعیت:** زنده (Living document) · **نسخه:** v1.2 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۳
 > هر تصمیمی که «رفتار» را تغییر می‌دهد اینجا ثبت می‌شود: چه تصمیمی، چرا، چه کسی، تا کی معتبر است.
 > تصمیم معماری بزرگ → ADR مستقل در `Architecture-02/ADR/`. تصمیم دامنه/محصول → `product/OPEN_DECISIONS.md`. این سند **فهرست واحد و تاریخ‌دار همه** است.
 > **مالک فهرست واحد تصمیم‌ها و گزینه‌های رد‌شده.** متن هر ADR در `Architecture-02/ADR/`.
@@ -42,7 +42,7 @@
 | ADR-004 | Outbox تراکنشی + Worker ایدم‌پوتنت | پذیرفته (موقت D-04) | — |
 | ADR-005 | پول: `BIGINT` ریال + نمایش تومان | پذیرفته | — |
 | ADR-006 | زمان: UTC در DB، شمسی در UI | پذیرفته | — |
-| ADR-007 | احراز هویت کوکی‌محور + MFA نقش حساس | **پیشنهادی** → نیازمند تأیید پیش از BR-1 گام ۵ | پیش از پیاده‌سازی هویت |
+| ADR-007 | احراز هویت کوکی‌محور + MFA نقش حساس | ✅ پذیرفته و اجراشده (۱۴۰۵/۰۹/۰۳) | اگر p95 اعتبارسنجی نشست > ۵ms یا SSO سازمانی مطرح شد |
 | ADR-008 | صف روی PostgreSQL (`FOR UPDATE SKIP LOCKED`) + `Queue Port` | ✅ پذیرفته | اگر عمق صف از بودجه تأخیر گذشت |
 | ADR-009 | ارزش‌گذاری FIFO + لایه هزینه | ✅ پذیرفته **مشروط** به تأیید ACC-EXT | قبل از G1 |
 | ADR-010 | نگهداشت داده سه‌لایه | ✅ پذیرفته **مشروط** به تأیید LEG-EXT | سالانه |
@@ -88,11 +88,10 @@
 |---|---|---|---|---|
 | ۱ | تأیید کتبی روش ارزش‌گذاری FIFO | ADR-009 | ACC-EXT | BR-5، COGS، P&L |
 | ۲ | مدت نگهداشت PII و متن رضایت | ADR-010 | LEG-EXT | BR-1 گام ۷، حذف/بی‌هویت‌سازی |
-| ۳ | تأیید ADR-007 (کوکی + MFA) | TECH | TECH | BR-1 گام ۵ |
-| ۴ | انتخاب درگاه پرداخت و شرکت حمل | Q-06 | OWNER | BR-3، BR-4 |
-| ۵ | مشخصات سرور Production | Q-11 | OWNER | استقرار واقعی |
-| ۶ | سیاست نمایش «ناموجود» و پیش‌سفارش | — | OWNER | BR-2 |
-| ۷ | فعال‌سازی COD و شرایط تطبیق نقدی | Q-06 | OWNER+FIN | پس از G1 |
+| ۳ | انتخاب درگاه پرداخت و شرکت حمل | Q-06 | OWNER | BR-3، BR-4 |
+| ۴ | مشخصات سرور Production | Q-11 | OWNER | استقرار واقعی |
+| ۵ | سیاست نمایش «ناموجود» و پیش‌سفارش | — | OWNER | BR-2 |
+| ۶ | فعال‌سازی COD و شرایط تطبیق نقدی | Q-06 | OWNER+FIN | پس از G1 |
 
 ---
 
@@ -104,6 +103,7 @@
 | Q-04 | `DATABASE_DESIGN` (fin_tax_rule نسخه‌دار)، `API_SPECIFICATION` (فاکتور)، `SECURITY_ARCHITECTURE` (نگهداشت سند مالی) |
 | Q-06 | `BUSINESS_WORKFLOWS` (WF پرداخت/حمل)، `API_SPECIFICATION` (Webhook)، `SECURITY_ARCHITECTURE` (امضا/بازپخش) |
 | Q-11 | `DEPLOYMENT_GUIDE`، `BACKUP_AND_RECOVERY`، `SECURITY_ARCHITECTURE` (شبکه/دسترسی) |
+| ADR-007 | `Architecture-02/ADR/ADR-007-auth-session-strategy.md`، `SECURITY_ARCHITECTURE §2/§13`، `DATABASE_DESIGN §3.1`، `packages/infrastructure/migrations/0002_identity_and_authorization.sql`، `packages/infrastructure/tests/0005_identity_negative.sql` |
 | D-09 | `infra/compose/docker-compose.yml` (profile)، `.env.example`، `IMPLEMENTATION_START_PLAN §5.۲` |
 | D-07، D-10، D-12 | `DATABASE_DESIGN §5` (سیاست Migration)، `packages/infrastructure/migrations/*`، `scripts/db-migrate.sh`، `IMPLEMENTATION_START_PLAN §5.۴` |
 
