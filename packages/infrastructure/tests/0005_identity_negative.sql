@@ -257,9 +257,83 @@ begin
   exception when insufficient_privilege then
     raise notice 'PASS APP-ROLE | Outbox مستقیم مسدود شد';
   end;
+
+  -- بازبینی: نشست نباید دور از start_session ساخته شود (وگرنه MFA دور زده می‌شود)
+  begin
+    insert into iam.sessions (user_id, token_hash, expires_at)
+    values ('11111111-1111-1111-1111-111111111111'::uuid,
+            decode(repeat('aa', 32), 'hex'), now() + interval '1 hour');
+    raise exception 'FAIL APP-ROLE: ساخت نشست بدون start_session مجاز بود';
+  exception when insufficient_privilege then
+    raise notice 'PASS APP-ROLE | درج مستقیم نشست مسدود شد';
+  end;
+
+  -- بازبینی: تغییر رمز فقط از set_password_hash (با ابطال نشست‌ها)
+  begin
+    update iam.users set password_hash = '$argon2id$v=19$m=1,t=1,p=1$bypass'
+     where id = '22222222-2222-2222-2222-222222222222'::uuid;
+    raise exception 'FAIL APP-ROLE: تغییر مستقیم password_hash مجاز بود';
+  exception when insufficient_privilege then
+    raise notice 'PASS APP-ROLE | تغییر مستقیم password_hash مسدود شد';
+  end;
+
+  -- درج کاربر هم نباید ستون رمز را در اختیار اپ بگذارد
+  begin
+    insert into iam.users (mobile, full_name, password_hash)
+    values ('09120000099', 'کاربر آزمون هک', '$argon2id$v=19$m=1,t=1,p=1$x');
+    raise exception 'FAIL APP-ROLE: درج کاربر با password_hash مجاز بود';
+  exception when insufficient_privilege then
+    raise notice 'PASS APP-ROLE | درج کاربر با password_hash مسدود شد';
+  end;
+
+  insert into iam.users (mobile, full_name)
+  values ('09120000098', 'کاربر ایجادشده توسط اپ');
+  raise notice 'PASS APP-ROLE | ایجاد کاربر بدون ستون رمز مجاز بود';
+
+  update iam.users set full_name = 'نام آزمون ویرایش‌شده'
+   where id = '22222222-2222-2222-2222-222222222222'::uuid;
+  raise notice 'PASS APP-ROLE | ویرایش ستون مجاز (full_name) انجام شد';
 end $$;
 
 reset role;
+
+-- --- بازبینی: قالب هش و آزادسازی قفل منقضی --------------------------------
+do $$
+begin
+  begin
+    perform iam.set_password_hash('22222222-2222-2222-2222-222222222222'::uuid,
+                                  'plain-text-password-value-1234');
+    raise exception 'FAIL HASH: هش نامعتبر ذخیره شد';
+  exception when sqlstate '22023' then
+    raise notice 'PASS HASH | قالب نامعتبر → %', sqlerrm;
+  end;
+end $$;
+
+do $$
+declare v_sid uuid;
+begin
+  begin
+    perform iam.start_session('11111111-1111-1111-1111-111111111111'::uuid,
+                              decode(repeat('ef', 32), 'hex'), '127.0.0.1'::inet, 'lock-test');
+    raise exception 'FAIL LOCK: ورود با قفل فعال پذیرفته شد';
+  exception when sqlstate '28000' then
+    raise notice 'PASS LOCK | قفل فعال ورود را رد کرد';
+  end;
+
+  -- پایان مدت قفل را شبیه‌سازی می‌کنیم؛ ورود بعدی باید خودکار آزاد شود
+  update iam.users set locked_until = now() - interval '1 minute'
+   where id = '11111111-1111-1111-1111-111111111111'::uuid;
+
+  v_sid := iam.start_session('11111111-1111-1111-1111-111111111111'::uuid,
+                             decode(repeat('ef', 32), 'hex'), '127.0.0.1'::inet, 'lock-test');
+
+  if not exists (select 1 from iam.users
+                  where id = '11111111-1111-1111-1111-111111111111'::uuid
+                    and status = 'active' and failed_attempts = 0) then
+    raise exception 'FAIL LOCK: قفل منقضی آزاد نشد';
+  end if;
+  raise notice 'PASS LOCK | قفل منقضی خودکار آزاد شد و نشست ساخته شد (%)', v_sid;
+end $$;
 
 select 'ALL STEP-5 NEGATIVE CASES PASSED' as result;
 rollback;

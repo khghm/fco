@@ -85,6 +85,7 @@ iam.sod_role_conflicts(rule_code, role_a, role_b)  -- ترکیب نقش ممنو
 ```
 - `0002` (BR-1 گام ۵) این دو جدول و پرچم `roles.requires_mfa` را اضافه کرد؛ ورود بدون MFA تأییدشده برای نقش حساس در تابع `iam.start_session` مسدود است.
 - تفکیک Maker/Checker در DB با `sys.assert_separation` و تریگر ترکیب نقش؛ جدول تأییدهای دامنه در BR-2.
+- `iam.otp_requests` در هر لحظه فقط یک کد فعال برای هر (موبایل، هدف) دارد؛ TTL، سقف تلاش و نرخ از `setting_versions` می‌آید و کد خام فقط در `sys.otp_spool` توسعه (D-13، پیش‌فرض خاموش) دیده می‌شود.
 - `token_hash` هرگز توکن خام نیست؛ نشست با هش جست‌وجو می‌شود.
 - `failed_attempts`/`locked_until` برای قفل تدریجی (`FR-1-07`).
 

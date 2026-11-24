@@ -1,6 +1,6 @@
 # تغییرات (CHANGELOG)
 
-> **وضعیت:** زنده · **نسخه:** v1.2 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۳
+> **وضعیت:** زنده · **نسخه:** v1.3 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۳
 > قالب بر پایه Keep a Changelog، تاریخ‌ها شمسی + ISO. هر تغییر در **رفتار، دامنه یا ساختار اسناد** یک ردیف اینجا دارد.
 > شاهد هر نسخه: `git show --stat <commit>`.
 > **مالک تاریخ تغییرات اسناد و مخزن.**
@@ -10,9 +10,37 @@
 ## [Unreleased]
 
 ### Planned
-- گام ۶: OTP مشتری (Spool توسعه) با انقضا/نرخ/ضد Brute Force
 - گام ۷: Audit و تنظیمات نسخه‌دار
 - گام ۸: Outbox/Queue Port/Worker/DLQ و Job پاک‌سازی نشست
+- BR-2: آداپتور پیامک واقعی و UI ورود/ثبت مشتری
+
+---
+
+## [0.7.0] — ۱۴۰۵/۰۹/۰۳ (2026-11-24)
+
+### Added
+- `packages/infrastructure/migrations/0003_identity_hardening.sql` (+ `.down.sql`) — بستن شکاف‌های بازبینی گام ۵: حذف INSERT/UPDATE مستقیم `iam.sessions` از اپ (دور زدن MFA)، GRANT ستونی `iam.users` (دور زدن ابطال نشست هنگام تغییر رمز)، `iam.unlock_if_expired` برای قفل موقت، و اعتبارسنجی قالب هش Argon2id/bcrypt.
+- `packages/infrastructure/migrations/0004_otp_customer.sql` (+ `.down.sql`) — `iam.otp_requests` با یک کد فعال در هر موبایل+هدف، `sys.otp_spool` توسعه، هفت تنظیم `auth.otp.*` نسخه‌دار، و توابع `request_otp`/`verify_otp`/`spool_otp`/`read_spool`.
+- `packages/infrastructure/tests/0007_otp_negative.sql` — ۱۲ سناریوی منفی OTP (cooldown، سقف موبایل/IP، باطل‌شدن کد قبلی، کد غلط/منقضی/مصرف‌شده، قفل تلاش، موبایل ناموجود، Spool خاموش و دسترسی مستقیم اپ).
+
+### Fixed
+- **شمارنده تلاش OTP پایدار نبود:** `verify_otp` پس از افزایش `attempts` استثنا می‌داد و استثنا همان دستور را بازمی‌گرداند؛ نتیجه: محافظت Brute Force عملاً بی‌اثر. اکنون وضعیت `ok|invalid|locked` برمی‌گردد.
+- **قفل ورود دائمی می‌شد:** پس از انقضای `locked_until` هیچ مسیر موفقی وجود نداشت؛ `start_session` قفل منقضی را آزاد می‌کند.
+- **دور زدن MFA و چرخش نشست از طریق نوشتن مستقیم:** با GRANT حداقلی بسته شد.
+
+### Changed
+- `DECISION_LOG` — D-13 (Spool OTP فقط توسعه، پیش‌فرض خاموش) و ردیف اثر آن.
+- `SECURITY_ARCHITECTURE §2`، `DATABASE_DESIGN §3.1`، `TEST_STRATEGY §6`، `IMPLEMENTATION_START_PLAN §3/§5.۶/§7` با شاهدهای واقعی گام ۵ (بازبینی) و گام ۶.
+- `tests/0005_identity_negative.sql` — پنج آزمون جدید برای نشست، `password_hash` (UPDATE و INSERT)، ایجاد کاربر و قالب هش + آزمون آزادسازی قفل منقضی (۳۱ PASS).
+
+### Verified
+- `down all` → `up` از صفر: ۴ Migration و `verify` سبز؛ `has_table_privilege('fco_app','iam.users','INSERT|UPDATE')` و `iam.sessions INSERT` همگی `false`.
+- `tests/0005` → ۳۱ PASS، `exit 0`؛ `tests/0007` → `ALL STEP-6 NEGATIVE CASES PASSED`، `exit 0`.
+- اثبات آزمون: `auth.otp.resend_seconds = 0` ⇒ `FAIL OTP` و `exit 3`؛ پس از بازگردانی تنظیم، سبز.
+
+### Known gaps
+- آداپتور پیامک و UI/use-case ورود مشتری در BR-2؛ اتصال OTP به حساب `R-CUST` هنوز پیاده نشده.
+- `T-SEC-02/04/07` و نگاشت HTTP کدهای خطا (§6 آزمون) باز است.
 
 ---
 
