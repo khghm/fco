@@ -1,6 +1,6 @@
 # سند کنترل اصلی پروژه (Project Master Control)
 
-> **وضعیت:** تأییدشده (G0) · **نسخه:** v1.1 · **تاریخ:** ۱۴۰۵/۰۹/۰۳ (۲۰۲۶-۱۱-۲۴)
+> **وضعیت:** تأییدشده (G0) · **نسخه:** v1.2 · **تاریخ:** ۱۴۰۵/۰۹/۰۳ (۲۰۲۶-۱۱-۲۴)
 > **مالک سند:** مالک پروژه · **بازبینی:** پایان هر فاز و در هر تغییر دامنه
 > این سند «نقطه ورود» است: اگر بین دو سند تناقض دیده شد، ترتیب اعتبار این است: **این سند → DECISION_LOG → ADR → سند دامنه‌ای**.
 
@@ -90,6 +90,39 @@ quality/         Micro-UX و کاتالوگ شکست (پشتیبان کیفیت)
 ```
 
 ترتیب خواندن برای عضو جدید تیم: `Management-00/PROJECT_MASTER_CONTROL` → `Business-01/PROJECT_DISCOVERY_REPORT` → `Business-01/BUSINESS_REQUIREMENTS` → `product/CAPABILITY_MAP` → `Architecture-02/SYSTEM_ARCHITECTURE` → `Business-01/USER_ROLES_AND_PERMISSIONS` → `Engineering-04/IMPLEMENTATION_PLAN`.
+
+### ۴.۲ مالکیت محتوا (قاعده تک‌منبعی)
+
+هر موضوع **یک** سند مالک دارد. بقیه اسناد حق دارند به آن **ارجاع** بدهند یا خلاصه یک‌خطی بیاورند، ولی تعریف دوباره، جدول کامل یا فهرست تکراری نمی‌سازند. ویرایش محتوا فقط در سند مالک انجام می‌شود.
+
+| موضوع | سند مالک | اسنادی که فقط ارجاع می‌دهند |
+|---|---|---|
+| منشور، اصول، گیت، فضای نام شناسه | `Management-00/PROJECT_MASTER_CONTROL.md` | همه |
+| توالی فاز و مسیر بحرانی | `Management-00/PROJECT_ROADMAP.md` | `product/RELEASE_PLAN.md` (معیار پذیرش) |
+| تصمیم‌ها و گزینه‌های رد‌شده | `Management-00/DECISION_LOG.md` + `Architecture-02/ADR/` | `product/OPEN_DECISIONS.md` (جدول بازبینی) |
+| ریسک آینده (احتمال/اثر/مالک) | `Management-00/RISK_REGISTER.md` | `Business-01/PROJECT_DISCOVERY_REPORT.md` (R-01..14 منبع اولیه) |
+| حالت شکست و رفتار فوری | `quality/FAILURE_MODE_ANALYSIS.md` | `SECURITY_ARCHITECTURE`، `BUSINESS_WORKFLOWS`، `DATABASE_DESIGN` |
+| الزام کسب‌وکار `BRQ` / قاعده `BRL` | `Business-01/BUSINESS_REQUIREMENTS.md` | `USER_ROLES…`، `BUSINESS_WORKFLOWS` |
+| نقش، مجوز، `SoD`، آستانه تأیید | `Business-01/USER_ROLES_AND_PERMISSIONS.md` | `ROLE_WORKFLOW_MATRIX`، `ADMIN_PANEL_SPECIFICATION`، `API_SPECIFICATION` |
+| جریان کاری، وضعیت، سند هر گام | `Business-01/BUSINESS_WORKFLOWS.md` | `ROLE_SCENARIOS` (روایت) |
+| ایستگاه `S1..S12` و اثر مالی/انباری | `Business-01/BUSINESS_OPERATIONS_BLUEPRINT.md` | `BUSINESS_WORKFLOWS` |
+| قابلیت `FR-*` و اولویت | `product/CAPABILITY_MAP.md` | همه |
+| معماری کلان و مرز ماژول‌ها | `Architecture-02/SYSTEM_ARCHITECTURE.md` | — |
+| اسکیما، جدول، قید، ایندکس، Migration | `Architecture-02/DATABASE_DESIGN.md` | `SYSTEM_ARCHITECTURE §3` (اصل‌ها) |
+| قرارداد API، کد خطای `FCO-*` | `Architecture-02/API_SPECIFICATION.md` | `SYSTEM_ARCHITECTURE §4` (خلاصه) |
+| تهدید، احراز هویت، رمزنگاری | `Architecture-02/SECURITY_ARCHITECTURE.md` | `SYSTEM_ARCHITECTURE §6` (قاعده) |
+| لحن، واژه‌نامه، تاریخ، عدد، مبلغ، پیام | `UX-03/PERSIAN_UX_STANDARDS.md` | `MICRO_UX_STANDARDS §2/3` (قاعده تعامل) |
+| توکن، مؤلفه، چیدمان | `UX-03/DESIGN_SYSTEM.md` | — |
+| قاعده تعامل، دسترس‌پذیری، بودجه UI | `quality/MICRO_UX_STANDARDS.md` | `DESIGN_SYSTEM §6`، `TEST_STRATEGY §9` |
+| صفحه و مجوز صفحه | `UX-03/ADMIN_PANEL_SPECIFICATION.md` | — |
+| استک، ساختار کد، CI، DoD | `Engineering-04/IMPLEMENTATION_PLAN.md` | — |
+| گام‌های BR-1 و **شاهد اجرا** | `Engineering-04/IMPLEMENTATION_START_PLAN.md` | `IMPLEMENTATION_PLAN §4.1` |
+| آزمون `T-*` و آستانه پذیرش | `Engineering-04/TEST_STRATEGY.md` | `RELEASE_PLAN`، `RISK_REGISTER` |
+| استقرار، محیط، انتشار، Rollback | `Engineering-04/DEPLOYMENT_GUIDE.md` | — |
+| پشتیبان، Restore، DR | `Engineering-04/BACKUP_AND_RECOVERY.md` | `TEST_STRATEGY §8` |
+
+**قاعده بازبینی:** پیش از افزودن جدول/فهرست جدید به هر سند، یک بار در این جدول نگاه کن؛ اگر موضوعش مالک دارد، فقط ارجاع بده.
+
 
 ---
 

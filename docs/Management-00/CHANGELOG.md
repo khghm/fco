@@ -15,6 +15,30 @@
 
 ---
 
+## [0.3.1] — ۱۴۰۵/۰۹/۰۳ (2026-11-24)
+
+### Changed — پاک‌سازی تکرار و تثبیت تک‌منبعی
+هیچ محتوای جدیدی اضافه نشد؛ فقط ۷ سند از تکرار پاک شد و ارجاع گرفت:
+
+| سند | تکرار حذف‌شده | مالک جدید |
+|---|---|---|
+| `Business-01/ROLE_WORKFLOW_MATRIX.md` | جدول ۱۱ نقش + جدول مجوزها/SoD | `USER_ROLES_AND_PERMISSIONS §2/§3` |
+| `quality/MICRO_UX_STANDARDS.md` §2/§3 | جدول کامل تقویم و اعداد | `PERSIAN_UX_STANDARDS §3/§4` |
+| `UX-03/DESIGN_SYSTEM.md` §6 | چک‌لیست کامل دسترس‌پذیری | `MICRO_UX_STANDARDS §8` |
+| `Architecture-02/SYSTEM_ARCHITECTURE.md` §3/§4/§6 | فهرست جداول، قرارداد API، متن امنیت | `DATABASE_DESIGN` / `API_SPECIFICATION` / `SECURITY_ARCHITECTURE` |
+| `Engineering-04/IMPLEMENTATION_PLAN.md` §4.1 | جدول ده‌گام BR-1 | `IMPLEMENTATION_START_PLAN §3` |
+| `Engineering-04/TEST_STRATEGY.md` §9 | عدد بودجه LCP (تکرار عدد) | `MICRO_UX_STANDARDS §10` |
+| `Business-01/BUSINESS_WORKFLOWS.md` | — (فقط مرز با `ROLE_SCENARIOS` روشن شد) | — |
+
+### Added
+- `Management-00/PROJECT_MASTER_CONTROL.md §4.2` — جدول **مالکیت محتوا** برای ۲۳ موضوع: هر واقعیت یک سند مالک دارد و بقیه فقط ارجاع می‌دهند.
+
+### Verified
+- جدول نقش‌ها: ۱ نسخه (قبلاً ۳) · جدول تاریخ/عدد: ۱ نسخه (قبلاً ۲) · چک‌لیست دسترس‌پذیری: ۱ نسخه (قبلاً ۲) · جدول ده‌گام BR-1: ۱ نسخه (قبلاً ۲).
+- پایان خط LF در همه اسناد ویرایش‌شده؛ صفر ارجاع شکسته؛ صفر کاراکتر غیرفارسی سرگردان.
+
+---
+
 ## [0.3.0] — ۱۴۰۵/۰۹/۰۳ (2026-11-24)
 
 ### Added — تکمیل مجموعه اسناد طبق ساختار هدف

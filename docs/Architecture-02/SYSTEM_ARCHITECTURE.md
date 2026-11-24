@@ -1,6 +1,6 @@
 # معماری فنی — Fashion Commerce OS
 
-> **وضعیت:** تأییدشده (G0) · **نسخه:** v1.0 · **تاریخ:** ۱۴۰۵/۰۹/۰۲
+> **وضعیت:** تأییدشده (G0) · **نسخه:** v1.1 · **تاریخ:** ۱۴۰۵/۰۹/۰۳
 > **خروجی ۵ از ۱۰** — طراحی، نه پیاده‌سازی. هر عدد ظرفیت صریحاً آزمون‌نشده است.
 
 ## ۰. قیود و نتیجه معماری
@@ -74,8 +74,9 @@ Internet ──TLS──> Reverse Proxy (HSTS, rate limit, static)
 | هم‌زمانی | `version` (Optimistic Lock) روی رکوردهای قابل‌ویرایش |
 | چند‌انباره | همه موجودی/گردش/رزرو با warehouse_id |
 
-### جداول کلیدی
-`iam_user/role/permission/session` · `catalog_product/variant/media` · `pricing_price` · `promotion_rule/coupon/redemption` · `inv_stock_ledger` · `inv_stock_balance` · `inv_reservation` · `proc_supplier/purchase_order/po_line/grn/grn_line/supplier_invoice` · `oms_order/order_line/order_snapshot/order_event` · `pay_transaction` · `pay_reconciliation` · `ful_pick/package/package_item` · `tms_shipment/shipment_event/carrier_invoice` · `rma_request/item/inspection/resolution` · `fin_account/journal/journal_line/period` · `fin_event_mapping` · `fin_tax_rule` · `crm_customer/consent/ticket/loyalty_*` · `mkt_campaign/workflow/message_log` · `sys_outbox/inbox_event/idempotency_key/job_run` · `audit_log` · `sys_setting`
+### جداول کلیدی (مرجع: `Architecture-02/DATABASE_DESIGN.md §2`)
+
+> فهرست schemaها، ستون‌ها، قیدها، ایندکس‌ها و نگهداشت داده در `DATABASE_DESIGN.md` است و اینجا تکرار نمی‌شود. سه تصمیم داده زیر اصل معماری‌اند، نه جزئیات جدول.
 
 ### سه تصمیم داده تعیین‌کننده
 1. **گردش + تجمیع با هم** در یک تراکنش؛ گزارش از تجمیع، حسابرسی از گردش.
@@ -85,22 +86,17 @@ Internet ──TLS──> Reverse Proxy (HSTS, rate limit, static)
 ### ایندکس (فرضیه تا آزمون)
 `(warehouse_id, variant_id)` · `(status, created_at)` · `(customer_id, placed_at)` · GIN روی ستون نرمال‌شده فارسی · keyset برای عمق زیاد · هیچ لیست بدون LIMIT.
 
-## ۴. قرارداد API
+## ۴. قرارداد API (خلاصه؛ مرجع: `Architecture-02/API_SPECIFICATION.md`)
 
-| موضوع | تصمیم |
+| موضوع | تصمیم معماری |
 |---|---|
-| سبک | REST + endpoint دستوری برای گذار وضعیت (`POST /orders/{id}/transitions`) |
+| سبک | REST + endpoint دستوری برای گذار وضعیت |
 | نسخه | `/api/v1` |
-| احراز هویت | کوکی نشست امن (HttpOnly/Secure/SameSite) |
-| مجوز | بررسی سرور در هر endpoint |
-| صفحه‌بندی | page/pageSize برای جدول + cursor برای فید حجیم |
-| مرتب‌سازی | `sort=field:asc` با whitelist |
-| هم‌زمانی | `If-Match`/version → `409` با داده فعلی |
-| Idempotency | هدر `Idempotency-Key` در POSTهای حساس |
-| خطا | `{code, message(fa), requestId, details}` بدون Stack Trace |
-| نرخ | per-IP/per-user برای احراز هویت، پرداخت، جست‌وجو، پیام |
-| فایل | نوع/حجم مجاز، ذخیره خصوصی، دانلود با لینک موقت |
-| مستندسازی | OpenAPI تک‌منبع + نمونه خطا |
+| هویت/مجوز | کوکی نشست امن؛ بررسی مجوز در use-case، نه route |
+| Idempotency | هدر `Idempotency-Key` برای عملیات مالی/سفارش |
+| خطا | `FCO-*` با `requestId`، بدون Stack Trace |
+
+> جزئیات (پارامترها، کدهای خطا، نرخ‌محدود، Webhook، کاتالوگ endpoint) **فقط** در `API_SPECIFICATION.md` نگهداری می‌شود.
 
 ## ۵. رویداد و یکپارچگی
 
@@ -118,9 +114,9 @@ Internet ──TLS──> Reverse Proxy (HSTS, rate limit, static)
 
 ## ۶. امنیت
 
-هویت: Argon2id/bcrypt، MFA، OTP محدود · نشست: کوکی امن، چرخش، ابطال · دسترسی: RBAC + مالکیت منبع + آزمون منفی · ورودی: schema validation، پارامتری‌سازی، رمزگذاری خروجی، ضد SSRF · CSRF: SameSite + بررسی Origin · فایل: نوع واقعی، نام تصادفی، عدم اجرا · اسرار: خارج از مخزن، چرخش · لاگ: Redaction PII + requestId · DB: حداقل دسترسی، پشتیبان رمزگذاری‌شده · وابستگی: قفل نسخه + اسکن + آینه · Audit: append-only، دسترسی محدود.
+**مالک کامل این حوزه:** `Architecture-02/SECURITY_ARCHITECTURE.md` (مدل تهدید STRIDE، احراز هویت، رمزنگاری، امنیت عملیات، آزمون `T-SEC-*`).
 
-**مدل تهدید اولیه:** BOLA/IDOR، دستکاری قیمت کلاینت، بازپخش Callback، ارسال انبوه، نشت داده در Export، افزایش موجودی با فراخوانی مستقیم.
+قاعده معماری که اینجا می‌ماند: **هر endpoint که شناسه منبع می‌گیرد باید مالکیت را در سرور بررسی کند**؛ و **هیچ کنترل امنیتی بدون آزمون منفی وجود ندارد**.
 
 ## ۷. زیرساخت Self-hosted
 
@@ -134,7 +130,7 @@ Internet ──TLS──> Reverse Proxy (HSTS, rate limit, static)
 
 Build قابل‌تکرار + قفل وابستگی → آزمون (unit/integration/migration) → بازبینی (lint، آسیب‌پذیری) → Migration افزودنی (Expand/Contract) → استقرار چند‌نمونه با Readiness → Smoke (ورود، محصول، سفارش آزمایشی، پنل، پرداخت Sandbox) → Rollback با برنامه → ثبت نسخه و Release Notes.
 
-## ۹. پشتیبان و DR
+## ۹. پشتیبان و DR (رویه: `Engineering-04/BACKUP_AND_RECOVERY.md`)
 
 پشتیبان روزانه کامل + WAL؛ فایل به مکان دوم؛ رمزگذاری با کلید جدا؛ چرخش روزانه/هفتگی/ماهانه؛ **آزمون Restore دوره‌ای روی محیط جدا**؛ RPO/RTO پس از آزمون تثبیت می‌شود؛ سناریوهای DR: از‌دست‌رفتن سرور، خرابی دیسک، حذف اشتباهی داده.
 
@@ -148,7 +144,7 @@ API (نرخ خطا، p50/p95/p99) · DB (اتصال، Query کند، قفل) · 
 
 **هیچ عدد ظرفیتی در این سند ادعا نمی‌شود؛ پس از آزمون در Capacity Report ثبت می‌شود.**
 
-## ۱۲. تست
+## ۱۲. تست (مالک: `Engineering-04/TEST_STRATEGY.md`)
 
 Unit (قواعد دامنه) · Integration (DB + تراکنش + Outbox) · Contract (آداپتورها) · E2E (خرید، مرجوعی، بسته‌بندی) · Security (دسترسی منفی) · Migration (نسخه قبل→بعد) · Restore · Performance.
 
