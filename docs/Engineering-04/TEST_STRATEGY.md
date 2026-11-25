@@ -71,6 +71,7 @@
 | `T-INV-03` | جمع دفتر vs `stock_balance` پس از ۱۰۰۰ گردش تصادفی | اختلاف صفر |
 | `T-INV-04` | انقضای رزرو + اجرای دوبار Job | آزادسازی یک‌بار |
 | `T-INV-05` | تعدیل بالای آستانه بدون تأیید دوم | رد |
+| `T-INV-06` | جهت `delta` بر پایه `reason_code` (`grn`/`return_restock` منفی، `sale_ship` مثبت، `reserve`/`release` در دفتر) | رد با `FCO-1078`؛ تجمیع/دفتر/Audit دست‌نخورده |
 
 **وضعیت BR-2 گام ۳ (۱۴۰۵/۰۹/۰۴):** `T-INV-01` با `scripts/inv-concurrency-test.sh` و ۱۰۰ کلاینت هم‌زمان pgbench اجرا شد: ۵ موفق، ۹۵ رد `FCO-1071`، `active|on_hand|reserved|available|ledger=5|5|5|0|5` در ۲ ثانیه؛ درخواست ۱۰۱ نیز رد شد. `T-INV-03` (۱۰۰۰ گردش تصادفی، اختلاف صفر) و `T-INV-04` (اجرای دوباره Job انقضا بدون آزادسازی مضاعف) در `tests/0013_inventory_movement_negative.sql` سبز شدند. قرمز عمدی: حذف `FOR UPDATE` و قید `stock_balance_available_nonnegative` + پنجره ۵۰ms ⇒ `100|0|0` و شکست آزمون (`RED_EXIT=1`)؛ درس ثبت‌شده: ۱۰۰ پروسه `docker exec` هم‌زمانی واقعی نمی‌سازد و هارنس باید از pgbench استفاده کند.
 
@@ -84,6 +85,16 @@
 | `T-CAT-03` | قیمت مؤثر (بازه آینده و کانال دیگر) و موجودی رزروشده در فهرست/صفحه | فقط بازه و کانال مؤثر؛ `available` رزروشده را نمی‌شمارد |
 
 **وضعیت BR-2 گام ۴ (۱۴۰۵/۰۹/۰۴):** `tests/0014_catalog_public_search_negative.sql` روی دیتابیس تازه از ۱۴ Migration سبز شد: `PASS VISIBILITY` (۴ از ۷ محصول عمومی؛ پیش‌نویس/آرشیو/آینده/ناموجود پنهان)، `PASS SEARCH` (ك→ک، ۱۲۳→123، جست‌وجو در `description`، عبارت نشانه‌ای بی‌نتیجه)، `PASS CATEGORY` (books=3، fashion=4 شامل زیرشاخه، دسته ناموجود=0، adidas=2)، `PASS PRICE/STOCK` (web=500000 نه 400000 آینده و نه 300000 b2b؛ b2b=300000؛ qty=2)، `PASS PAGING/GUARDS` (دو صفحه متمایز، `total_count=3`، ۵ ورودی نامجاز → `FCO-1081`)، `PASS DETAIL`/`PASS PATH`/`PASS APP-ROLE`/`PASS INDEX`. قرمز عمدی: حذف گارد `status='published'` و `published_at <= now()` از `cat.public_product_ids` ⇒ `FAIL VISIBILITY: 6 محصول عمومی برگشت` و خروج ۳؛ با Migration دست‌نخورده دوباره سبز شد.
+
+**بازبینی گام ۴ — `0015_catalog_search_fixes`:**
+| # | آزمون | انتظار |
+|---|---|---|
+| `T-CAT-04` | تنوع آرشیوشده با ارزان‌ترین قیمت و بیشترین موجودی + تنوع ارزان‌تر بدون `compare_at` | قیمت/موجودی و صفحه فقط از تنوع فعال؛ `compare_at` از همان قیمت کمینه |
+| `T-CAT-05` | `ACL` توابع عمومی: `PUBLIC` و کمک‌تابع بدون `LIMIT` | `PUBLIC` صفر مجوز؛ اپ فقط مسیرهای صفحه‌بندی‌شده |
+
+**وضعیت (۱۴۰۵/۰۹/۰۴):** `tests/0015_catalog_search_fixes_negative.sql` سبز شد: `PASS ARCHIVED` (قیمت ۴۰۰۰۰۰ نه ۱۰۰۰۰۰؛ `compare_at=NULL` نه ۶۰۰۰۰۰؛ موجودی ۶ نه ۱۵)، `PASS CONFIG/INDEX` (حذف `cat.fa` بدون شکستن جست‌وجو و GIN)، `PASS GUARD` (`FCO-1081` در `search_query` و `search_products`)، `PASS ACL`/`PASS APP-ROLE`. قرمز عمدی: برگرداندن قیمت تنوع آرشیوشده ⇒ `FAIL ARCHIVED: قیمت فهرست=100000` (exit 3).
+
+**وضعیت `T-INV-06` (۱۴۰۵/۰۹/۰۴):** `tests/0016_movement_direction_negative.sql` سبز: `grn -1`، `return_restock -2` و `sale_ship +5` با `FCO-1078` رد شدند و `on_hand`/دفتر/Audit دست‌نخورده ماند؛ `sale_ship -3` و `adjust ±` مجاز؛ درج مستقیم `reserve` در دفتر رد شد؛ `on_hand = جمع دفتر = 5`. قرمز عمدی: `drop trigger stock_ledger_direction_guard` ⇒ `FAIL DIRECTION: grn منفی پذیرفته شد` (exit 3).
 
 ### ۴.۲ سفارش و پرداخت
 | # | آزمون | انتظار |

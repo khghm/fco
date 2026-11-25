@@ -201,6 +201,15 @@ stage_typecheck() {
   [[ "$cat_have" -ge 10 ]] || die "use-case/توابع کاتالوگ غایب‌اند: $cat_have از ۱۰"
   ok "۴ use-case کاتالوگ و ۶ تابع خواندن/جست‌وجوی عمومی موجود است"
 
+  local direction_guard
+  direction_guard="$(q "$DB_TYPECHECK" "select count(*) from pg_trigger t
+      join pg_class c on c.oid = t.tgrelid
+      join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'inv' and c.relname = 'stock_ledger'
+        and t.tgname = 'stock_ledger_direction_guard' and not t.tgisinternal;")"
+  [[ "$direction_guard" = "1" ]] || die "گارد جهت گردش روی inv.stock_ledger نیست"
+  ok "گارد جهت delta بر پایه reason_code فعال است"
+
   drop_db "$DB_TYPECHECK"
 }
 

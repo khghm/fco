@@ -1,6 +1,6 @@
 # تغییرات (CHANGELOG)
 
-> **وضعیت:** زنده · **نسخه:** v1.14 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۴
+> **وضعیت:** زنده · **نسخه:** v1.15 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۴
 > قالب بر پایه Keep a Changelog، تاریخ‌ها شمسی + ISO. هر تغییر در **رفتار، دامنه یا ساختار اسناد** یک ردیف اینجا دارد.
 > شاهد هر نسخه: `git show --stat <commit>`.
 > **مالک تاریخ تغییرات اسناد و مخزن.**
@@ -13,6 +13,31 @@
 - BR-2 گام ۵ به بعد: رندر صفحات عمومی پس از اسکلت اپ (D-05) و پنل محصول/قیمت
 
 ---
+
+## [0.19.0] — ۱۴۰۵/۰۹/۰۴ (2026-11-25)
+
+### Added
+- `0016_movement_direction` — تریگر `stock_ledger_direction_guard` جهت `quantity_delta` را به `reason_code` گره می‌زند: `grn`/`return_restock` فقط مثبت، `sale_ship` فقط منفی، `adjust` دوطرفه و `reserve`/`release` در دفتر گردش ممنوع (`FCO-1078`). گارد روی دفتر گذاشته شد، نه در تابع، تا هر نویسنده آینده هم مشمول باشد.
+- سوئیت `0016_movement_direction_negative` — `T-INV-06`: جهت‌های نامجاز، بی‌اثر بودن رد روی تجمیع/دفتر/Audit، مسیرهای مجاز و درج مستقیم `reserve`.
+- سوئیت `0015_catalog_search_fixes_negative` — `T-CAT-04`/`T-CAT-05`.
+
+### Fixed (بازبینی گام ۴)
+- `0015_catalog_search_fixes`: فهرست قیمت را از تنوع آرشیوشده هم می‌گرفت (ارزان‌ترین قیمت می‌توانست از کالای آرشیوشده باشد)؛ حالا قیمت و موجودی فقط از تنوع فعال می‌آید.
+- `compare_at_rial` با `min()` مستقل انتخاب می‌شد و می‌توانست «قیمت قبل» تنوعی دیگر باشد؛ حالا از همان قیمت کمینه می‌آید.
+- پیکربندی تغییرپذیر `cat.fa` (نسخه‌ای از `simple` بدون رفتار اضافه) حذف شد؛ `ALTER` آن می‌توانست ایندکس GIN را بی‌سروصدا کهنه کند. جست‌وجو با `simple` + یکسان‌سازی و بازسازی ایندکس انجام می‌شود.
+- دسترسی: `grant ... to fco_app` در 0014 چیزی را محدود نمی‌کرد چون PostgreSQL به‌طور پیش‌فرض `EXECUTE` را به `PUBLIC` می‌دهد؛ حالا `PUBLIC` برداشته شده، فقط اپ مجاز است و `cat.public_product_ids` (بدون `LIMIT`) هیچ grant‌ای ندارد.
+- سقف طول عبارت به `cat.search_query` منتقل شد تا هر مسیر (نه فقط `search_products`) محافظت شود.
+
+### Changed
+- `scripts/ci.sh` وجود گارد جهت گردش را در typecheck بررسی می‌کند.
+- `DATABASE_DESIGN §3.2/§3.4/§4`، `TEST_STRATEGY §4.1/§4.1.1`، `IMPLEMENTATION_PLAN §4.2`، `IMPLEMENTATION_START_PLAN §7`.
+- سوئیت 0014: بررسی پیکربندی حذف‌شده `cat.fa` جای خود را به سالم‌بودن بردار جست‌وجو داد.
+
+### Verified
+- `CI PASS | lint · typecheck · test · migration · build` · `PASS 16 Migration` · `PASS 11 مجموعه آزمون سبز` · `build_fingerprint = bundle_fingerprint = 32|57|16|1c00d554bfa9ae623d5617b414a92aff` (bundle=197378 bytes).
+- `tests/0015_catalog_search_fixes_negative.sql`: `PASS ARCHIVED` (۴۰۰۰۰۰ نه ۱۰۰۰۰۰؛ `compare_at=NULL`؛ موجودی ۶)، `PASS CONFIG/INDEX`، `PASS GUARD`، `PASS ACL`/`PASS APP-ROLE`. قرمز عمدی ⇒ `FAIL ARCHIVED: قیمت فهرست=100000` (exit 3)، سپس سبز مجدد.
+- `tests/0016_movement_direction_negative.sql`: `PASS DIRECTION`/`PASS ALLOWED`/`PASS REASON`/`PASS EVIDENCE` (`on_hand = جمع دفتر = 5`). قرمز عمدی با `drop trigger stock_ledger_direction_guard` ⇒ `FAIL DIRECTION: grn منفی پذیرفته شد` (exit 3)، سپس سبز مجدد.
+- تست هم‌زمانی `T-INV-01` پس از تغییرات: `5|95|0` در ۳ دور و `overlap=99`.
 
 ## [0.18.0] — ۱۴۰۵/۰۹/۰۴ (2026-11-25)
 

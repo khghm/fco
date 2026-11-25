@@ -329,11 +329,11 @@ begin
   if to_regclass('cat.products_search_gin') is null then
     raise exception 'FAIL INDEX: ایندکس GIN جست‌وجو ساخته نشده است';
   end if;
-  if not exists (select 1 from pg_ts_config c join pg_namespace n on n.oid = c.cfgnamespace
-                  where n.nspname = 'cat' and c.cfgname = 'fa') then
-    raise exception 'FAIL INDEX: پیکربندی cat.fa وجود ندارد';
+  -- 0015 پیکربندی تغییرپذیر cat.fa را حذف کرد؛ بردار جست‌وجو باید سالم بماند.
+  if cat.search_vector('کتاب', null) = ''::tsvector then
+    raise exception 'FAIL INDEX: بردار جست‌وجو خالی است';
   end if;
-  raise notice 'PASS INDEX | GIN روی cat.search_vector و پیکربندی cat.fa موجود است';
+  raise notice 'PASS INDEX | GIN روی cat.search_vector و بردار جست‌وجو سالم است';
 end $$;
 
 select 'ALL STEP-BR2-4 NEGATIVE CASES PASSED' as result;

@@ -101,7 +101,8 @@ cat.product_media(id, product_id, variant_id null, storage_key, alt_text,
 ```
 - `sku` و `barcode` **یکتا در سطح کل** (`BRQ-01`، `FM-O-07`).
 - `variant` تنها سطحی است که موجودی/قیمت روی آن است.
-- جست‌وجوی عمومی در `0014`: `cat.normalize_text` (ی/ي، ک/ك، همزه، ة/ۀ، ZWNJ، ارقام) + پیکربندی `cat.fa` (دیکشنری `simple`) + GIN روی `cat.search_vector(title, description)`. عبارت کاربر با `cat.search_query` به `tsquery` امن تبدیل می‌شود (بدون خطای نحو).
+- جست‌وجوی عمومی در `0014`/`0015`: `cat.normalize_text` (ی/ي، ک/ك، همزه، ة/ۀ، ZWNJ، ارقام) + دیکشنری `simple` + GIN روی `cat.search_vector(title, description)`. عبارت کاربر با `cat.search_query` به `tsquery` امن تبدیل می‌شود (سقف طول، بدون خطای نحو). پیکربندی تغییرپذیر سفارشی حذف شد: `ALTER` آن می‌توانست ایندکس را بی‌سروصدا کهنه کند.
+- توابع عمومی از `PUBLIC` پس گرفته شده‌اند و فقط نقش `fco_app` مجوز دارد؛ `cat.public_product_ids` (بدون `LIMIT`) هیچ grant‌ای ندارد و فقط کمک‌تابع داخلی است.
 - خواندن عمومی فقط از `cat.public_product_ids` می‌گذرد: `status = 'published'` و `published_at <= now()`؛ قیمت از بازه مؤثر کانال (نه بازه آینده، نه کانال دیگر) و موجودی به‌صورت `on_hand - reserved - quarantined`.
 
 ### ۳.۳ قیمت (نسخه‌دار، `ADR-005`/Q-04)
@@ -148,6 +149,7 @@ inv.reservations(id, warehouse_id, variant_id, order_line_id, quantity int,
 2. `balance_after` باید برابر `on_hand` جدید باشد؛ تریگر بررسی می‌کند (`FM-O-02`).
 3. `available = on_hand - reserved - quarantined` (محاسبه‌شده، ذخیره‌نشده تا اختلاف ممکن نباشد).
 4. رزرو با `SELECT ... FOR UPDATE` روی `stock_balance` و بررسی `available >= qty` → تضمین oversell صفر (`BRQ-14`، `T-INV-01`).
+5. جهت `delta` به `reason_code` گره خورده است (تریگر `stock_ledger_direction_guard`، `FCO-1078`): `grn`/`return_restock` فقط مثبت، `sale_ship` فقط منفی، `adjust` دوطرفه، `reserve`/`release` در دفتر گردش ممنوع. بنابراین مجوز رسید انبار نمی‌تواند موجودی را کم کند (`T-INV-06`).
 5. `REVOKE UPDATE, DELETE ON inv.stock_ledger FROM app_user` + تریگر `raise exception` برای اطمینان دو‌لایه.
 
 ### ۳.۵ لایه هزینه (`ADR-009`)
