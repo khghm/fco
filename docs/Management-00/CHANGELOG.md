@@ -1,6 +1,6 @@
 # تغییرات (CHANGELOG)
 
-> **وضعیت:** زنده · **نسخه:** v1.12 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۴
+> **وضعیت:** زنده · **نسخه:** v1.13 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۴
 > قالب بر پایه Keep a Changelog، تاریخ‌ها شمسی + ISO. هر تغییر در **رفتار، دامنه یا ساختار اسناد** یک ردیف اینجا دارد.
 > شاهد هر نسخه: `git show --stat <commit>`.
 > **مالک تاریخ تغییرات اسناد و مخزن.**
@@ -10,9 +10,29 @@
 ## [Unreleased]
 
 ### Planned
-- BR-2 گام ۳ به بعد: `inv.apply_movement` و رزرو اتمیک، صفحات عمومی، پنل، آزمون هم‌زمانی
+- BR-2 گام ۴ به بعد: صفحات عمومی محصول/دسته/جست‌وجو، پنل محصول/قیمت
 
 ---
+
+## [0.17.0] — ۱۴۰۵/۰۹/۰۴ (2026-11-25)
+
+### Added
+- `0013_inventory_movement` — `inv.apply_movement` اتمیک (درج دفتر + تجمیع در یک تراکنش، `balance_after` از `on_hand` جدید)، `inv.reserve` با `FOR UPDATE` و بررسی `available`، `inv.release`، و `inv.expire_reservations` با `sys.job_begin`/`job_finish`.
+- مجوز اجباری در مسیر گردش، نگاشت‌شده از `reason_code`: `grn`→`warehouse.grn.create`، `sale_ship`→`warehouse.pick.execute`، `return_restock`→`returns.inspection.record`، `adjust`→`inventory.adjust`؛ `reserve`/`release` به‌عنوان delta ممنوع (`FCO-1070`).
+- سوئیت `0013_inventory_movement_negative` — مجوز/ورودی/انبار/تنوع/رزرو/انقضا و ۱۰۰۰ گردش با تجمیع برابر.
+- `scripts/inv-concurrency-test.sh` — `T-INV-01` با ۱۰۰ کلاینت هم‌زمان pgbench (نه ۱۰۰ پروسه `docker exec`) و شمارش نتیجه از دیتابیس.
+
+### Fixed
+- Job انقضای رزرو در آزمون با عقب‌بردن `expires_at` بدون `created_at` رد می‌شد؛ هر دو به گذشته برده می‌شوند تا قید `expires_at > created_at` معتبر بماند.
+
+### Changed
+- `DATABASE_DESIGN §3.4`، `TEST_STRATEGY §4.1`، `IMPLEMENTATION_PLAN §4.2`، `IMPLEMENTATION_START_PLAN §7`.
+
+### Verified
+- `CI PASS | lint · typecheck · test · migration · build` · `PASS 13 Migration` · `PASS 8 مجموعه آزمون سبز` · `build_fingerprint = bundle_fingerprint = 32|49|13|714166be01d3644a9f0e6423952575fc` (bundle=166301 bytes).
+- `PASS RECONCILE | پس از ۱۰۰۰ گردش، جمع دفتر = تجمیع` · `PASS EVIDENCE | 1005 گردش و 1009 رکورد Audit`.
+- `T-INV-01`: `success=5 rejected=95 stock_rejected=95`، `active_reservations|on_hand|reserved|available|ledger_sum=5|5|5|0|5`، درخواست ۱۰۱ → `FCO-1071`.
+- قرمز عمدی: حذف `FOR UPDATE` و قید `stock_balance_available_nonnegative` با پنجره ۵۰ms ⇒ `ok|stock_rejected|other_rejected=100|0|0` و `FAIL` (exit 1)؛ سپس Migration دست‌نخورده دوباره سبز.
 
 ## [0.16.0] — ۱۴۰۵/۰۹/۰۴ (2026-11-25)
 

@@ -163,6 +163,8 @@ inv.cost_layer_consumption(id, layer_id, order_line_id, qty int,
 
 **use-case کاتالوگ (۱۴۰۵/۰۹/۰۴):** `0012_catalog_usecases` چهار use-case امنیتی `cat.product_create`/`product_update` و `cat.variant_create`/`variant_update` را اضافه می‌کند (مجوز + Audit در همان تراکنش، کنترل تعارض با `expected_version`). همان Migration پنج شکاف ۰۰۱۱ را می‌بندد: نسخه و `updated_at` برای تنوع و `stock_balance`، سازگاری `superseded_by` با تنوع/کانال/بازه بعدی، قید شیء‌بودن `attributes`، و حذف قید اختراعی `sku = upper(sku)`.
 
+**موجودی اتمیک (۱۴۰۵/۰۹/۰۴):** `0013_inventory_movement` تابع `inv.apply_movement` را می‌سازد که درج دفتر و به‌روزرسانی `stock_balance` را در یک تراکنش انجام می‌دهد و `balance_after` را از `on_hand` جدید می‌گیرد؛ `inv.reserve` با `SELECT … FOR UPDATE` و بررسی `available >= qty`، `inv.release` و `inv.expire_reservations` (Job با `sys.job_begin`/`job_finish` و دسته ۵۰۰) اضافه شدند. مجوز از `reason_code` نگاشت می‌شود (`grn`→`warehouse.grn.create`، `sale_ship`→`warehouse.pick.execute`، `return_restock`→`returns.inspection.record`، `adjust`→`inventory.adjust`) و `reserve`/`release` به‌عنوان delta ممنوع‌اند (`FCO-1070`). Audit در همان تراکنش، قید `reserved <= on_hand - quarantined` به‌عنوان لایه دوم، و خطاهای `FCO-1070..1077`. شاهد: سوئیت `0013_inventory_movement_negative`، `T-INV-01` با ۱۰۰ کلاینت pgbench (۵ موفق/۹۵ رد؛ `5|5|5|0|5`) و قرمز عمدی با حذف قفل/قید (۱۰۰ موفق ⇒ شکست آزمون).
+
 ### ۳.۶ سفارش
 ```sql
 oms.orders(id, order_number text unique not null, customer_id null,
