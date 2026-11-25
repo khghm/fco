@@ -18,7 +18,7 @@ insert into cat.brands (id, slug, title) values
 insert into cat.categories (id, slug, title) values
   ('c5000000-0000-0000-0000-000000000001', 'rev-cat', 'دسته بازبینی');
 insert into cat.products (id, slug, title, brand_id, category_id, status, published_at) values
-  ('a5000000-0000-0000-0000-000000000001', 'p-15', 'کتاب بازبینی', 
+  ('a5000000-0000-0000-0000-000000000001', 'p-15', 'کتاب بازبینی',
    'b5000000-0000-0000-0000-000000000001', 'c5000000-0000-0000-0000-000000000001',
    'published', now() - interval '1 hour');
 

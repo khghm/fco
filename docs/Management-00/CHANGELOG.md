@@ -1,6 +1,6 @@
 # تغییرات (CHANGELOG)
 
-> **وضعیت:** زنده · **نسخه:** v1.15 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۴
+> **وضعیت:** زنده · **نسخه:** v1.16 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۴
 > قالب بر پایه Keep a Changelog، تاریخ‌ها شمسی + ISO. هر تغییر در **رفتار، دامنه یا ساختار اسناد** یک ردیف اینجا دارد.
 > شاهد هر نسخه: `git show --stat <commit>`.
 > **مالک تاریخ تغییرات اسناد و مخزن.**
@@ -13,6 +13,27 @@
 - BR-2 گام ۵ به بعد: رندر صفحات عمومی پس از اسکلت اپ (D-05) و پنل محصول/قیمت
 
 ---
+
+## [0.20.0] — ۱۴۰۵/۰۹/۰۴ (2026-11-25)
+
+### Added
+- `0017_reservation_expiry_isolation` — جدول `inv.reservation_expiry_failures` (`run_id`، `reservation_id`، `error_sqlstate`، `message`، `occurred_at`) و بازسازی `inv.expire_reservations` با خروجی `(outcome, expired, run_id, failed)`.
+- سوئیت `0017_reservation_expiry_isolation_negative` — `T-INV-07`: رزرو خراب در وسط دسته، ثبت خطا با `run_id`/`sqlstate`، بی‌اثر بودن شکست روی Audit و `job_runs`، بازآزمون پس از رفع داده و ممنوعیت جعل ردیف خطا از نقش اپ.
+
+### Fixed
+- `inv.expire_reservations` یک `begin … exception` دور **کل دسته** داشت؛ در PL/pgSQL هر بلوک exception یک زیرتراکنش است، پس خطای یک رزرو همه آزادسازی‌های همان دسته را برمی‌گرداند و Job را `failed` می‌کرد. حالا زیرتراکنش به‌ازای هر رزرو است: خطا فقط همان رزرو را برمی‌گرداند، در جدول خطا ثبت می‌شود و بقیه دسته آزاد می‌شوند.
+- انتخاب دسته با `FOR UPDATE SKIP LOCKED` انجام می‌شود تا رزرو قفل‌شده کل Job را معطل نکند؛ رزرو خراب `active` می‌ماند و در slot بعدی دوباره تلاش می‌شود (شکست پایدار دیده می‌شود، پنهان نمی‌شود).
+- `EXECUTE` تابع از `PUBLIC` گرفته شد و فقط `fco_app` مجاز است (همان درس `0015`).
+- فاصله انتهایی در `tests/0015_catalog_search_fixes_negative.sql` که مرحله lint را قرمز می‌کرد.
+
+### Changed
+- Job با شکست جزئی `succeeded` می‌ماند و `error` همان رکورد شمار شکست و نام جدول خطا را می‌برد؛ `failed` نمی‌شود تا `job.max_attempts` بی‌دلیل نسوزد.
+- `DATABASE_DESIGN §3.4`، `TEST_STRATEGY §4.1` (`T-INV-07`)، `IMPLEMENTATION_PLAN §4.2`.
+
+### Verified
+- `CI PASS | lint · typecheck · test · migration · build` · `PASS 17 Migration` · `PASS 12 مجموعه آزمون سبز` · `build_fingerprint = bundle_fingerprint = 33|57|17|92094430912f932eeab96bf67f9e25fc` (bundle=204179 bytes).
+- `tests/0017_reservation_expiry_isolation_negative.sql`: `PASS BATCH` (`expired=2`، `failed=1`، `outcome=ran`)، `PASS ISOLATION` (رزرو بعد از رزرو خراب هم آزاد شد)، `PASS LOG` (`sqlstate=23514`، `run_id=1`)، `PASS AUDIT`/`PASS JOB`/`PASS SLOT`/`PASS RETRY`/`PASS APP-ROLE`.
+- قرمز عمدی: برداشتن زیرتراکنش هر رزرو ⇒ `FAIL BATCH: خطای یک رزرو Job را failed کرد` (exit 3)، سپس سبز مجدد.
 
 ## [0.19.0] — ۱۴۰۵/۰۹/۰۴ (2026-11-25)
 
