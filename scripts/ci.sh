@@ -195,9 +195,11 @@ stage_typecheck() {
   cat_have="$(q "$DB_TYPECHECK" "select count(distinct p.proname) from pg_proc p
       join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'cat'
-        and p.proname in ('product_create','product_update','variant_create','variant_update');")"
-  [[ "$cat_have" -ge 4 ]] || die "use-caseهای کاتالوگ غایب‌اند: $cat_have از ۴"
-  ok "۴ use-case کاتالوگ (محصول/تنوع) موجود است"
+        and p.proname in ('product_create','product_update','variant_create','variant_update',
+                          'normalize_text','search_query','public_product_ids',
+                          'search_products','public_product','category_path');")"
+  [[ "$cat_have" -ge 10 ]] || die "use-case/توابع کاتالوگ غایب‌اند: $cat_have از ۱۰"
+  ok "۴ use-case کاتالوگ و ۶ تابع خواندن/جست‌وجوی عمومی موجود است"
 
   drop_db "$DB_TYPECHECK"
 }
@@ -246,20 +248,24 @@ stage_migration() {
     # trap در زمان خروج اجرا می‌شود و متغیر local آن موقع نیست؛ مقدار را می‌نویسیم.
     trap "docker rm -f '$name' >/dev/null 2>&1 || true" EXIT
     # pg_isready و حتی دو کوئری موفق می‌توانند به سرور موقتِ مرحله init پاسخ دهند
-    # که پس از init خاموش می‌شود و اتصال را می‌بندد. معیار پایدار: زمان شروع
-    # postmaster باید در دو پروب با فاصله ۳ ثانیه یکی بماند (جایگزینی init → واقعی
-    # این مقدار را عوض می‌کند).
+    # که پس از init خاموش می‌شود و اتصال را می‌بندد (خطای واقعی دیده‌شده:
+    # «database system is shutting down»). سرور موقت روی سوکت یونیکس گوش می‌دهد و
+    # listen_addresses ندارد؛ پس پروب‌ها از TCP درون کانتینر زده می‌شوند و علاوه بر
+    # آن زمان شروع postmaster باید در دو پروب با فاصله ۳ ثانیه یکی بماند.
     # مهلت زمان‌محور است، نه تعدادی: init روی ماشین کند می‌تواند بیش از ۷۰ ثانیه
     # طول بکشد و حلقه‌های عددی زودتر تمام می‌شوند.
     local ready=0 start_time stable_time deadline=$((SECONDS + 180))
     while [[ "$SECONDS" -lt "$deadline" ]]; do
-      start_time="$(docker exec "$name" psql -U "$DB_USER" -d postgres -tAc \
-        'select extract(epoch from pg_postmaster_start_time())::bigint' 2>/dev/null || true)"
-      if [[ -n "$start_time" ]]; then
+      # pg_isready روی TCP سبز می‌شود فقط وقتی سرور واقعی بالا آمده باشد؛
+      # سرور موقت init روی سوکت یونیکس است و پورت TCP ندارد. pg_isready احراز
+      # هویت نمی‌کند، پس رمز لازم نیست و کوئری دوم از سوکت زده می‌شود.
+      if docker exec "$name" pg_isready -h 127.0.0.1 -q; then
+        start_time="$(docker exec "$name" psql -U "$DB_USER" -d postgres -tAc \
+          'select extract(epoch from pg_postmaster_start_time())::bigint' 2>/dev/null || true)"
         sleep 3
         stable_time="$(docker exec "$name" psql -U "$DB_USER" -d postgres -tAc \
           'select extract(epoch from pg_postmaster_start_time())::bigint' 2>/dev/null || true)"
-        if [[ -n "$stable_time" && "$stable_time" = "$start_time" ]]; then
+        if [[ -n "$start_time" && "$stable_time" = "$start_time" ]]; then
           ready=1; break
         fi
       fi

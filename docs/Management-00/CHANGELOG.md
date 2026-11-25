@@ -1,6 +1,6 @@
 # تغییرات (CHANGELOG)
 
-> **وضعیت:** زنده · **نسخه:** v1.13 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۴
+> **وضعیت:** زنده · **نسخه:** v1.14 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۴
 > قالب بر پایه Keep a Changelog، تاریخ‌ها شمسی + ISO. هر تغییر در **رفتار، دامنه یا ساختار اسناد** یک ردیف اینجا دارد.
 > شاهد هر نسخه: `git show --stat <commit>`.
 > **مالک تاریخ تغییرات اسناد و مخزن.**
@@ -10,9 +10,31 @@
 ## [Unreleased]
 
 ### Planned
-- BR-2 گام ۴ به بعد: صفحات عمومی محصول/دسته/جست‌وجو، پنل محصول/قیمت
+- BR-2 گام ۵ به بعد: رندر صفحات عمومی پس از اسکلت اپ (D-05) و پنل محصول/قیمت
 
 ---
+
+## [0.18.0] — ۱۴۰۵/۰۹/۰۴ (2026-11-25)
+
+### Added
+- `0014_catalog_public_search` — لایه خواندن عمومی گام ۴: `cat.normalize_text` (ی/ي، ک/ك، همزه، ة/ۀ، ZWNJ، ارقام فارسی/عربی)، پیکربندی `cat.fa`، GIN روی `cat.search_vector(title, description)`، `cat.search_query` (تبدیل امن عبارت کاربر به `tsquery`)، `cat.public_product_ids` (تنها منبع فیلتر `published` + `published_at <= now()`)، `cat.search_products` (صفحه‌بندی سرور، قیمت مؤثر کانال، موجودی قابل‌فروش، `total_count`)، `cat.public_product` (JSON صفحه محصول) و `cat.category_path` (breadcrumb).
+- چهار تنظیم نسخه‌دار `cat.search.*` (اندازه صفحه، سقف، طول عبارت، سقف offset)؛ هیچ عددی در تابع هارد‌کد نیست.
+- سوئیت `0014_catalog_public_search_negative` — `T-CAT-01..03` به‌همراه صفحه‌بندی، سقف‌های ورودی (`FCO-1081`)، جزئیات تنوع و اجرا از نقش `fco_app`.
+
+### Changed
+- `scripts/inv-concurrency-test.sh` بازنویسی و سخت‌تر شد (بازبینی گام ۳): ۳ دور پیش‌فرض، شمارش کامل `ok+stock+other`، اثبات هم‌پوشانی از بازه ثبت‌شده در دیتابیس (`overlap ≥ 50`) و پنجره شروع، و حالت قرمز خودتزریق `FCO_INV_BREAK=1` که به دیتابیس دستی نیاز ندارد. `FCO_INV_REUSE_DB` حذف شد.
+- `scripts/ci.sh` توابع خواندن/جست‌وجوی عمومی را هم در سطح API بررسی می‌کند (۱۰ تابع `cat`).
+- `DATABASE_DESIGN §3.2/§4`، `TEST_STRATEGY §4.1/§4.1.1`، `IMPLEMENTATION_PLAN §4.2`، `IMPLEMENTATION_START_PLAN §7`.
+
+### Fixed
+- `scripts/ci.sh` آمادگی Postgres یکبارمصرف را با `pg_isready` روی TCP می‌سنجد. پیش از این پروب می‌توانست به سرور موقت مرحله init پاسخ دهد که بعداً خاموش می‌شود و مرحله Migration را با «database system is shutting down» می‌شکست.
+- بازگشت `0014` دیگر `sys.settings`/`setting_versions` را حذف نمی‌کند؛ تاریخچه تنظیمات فقط‌افزودنی است (`FCO-1025`) — همان الگوی `0011`/`0013`.
+
+### Verified
+- `CI PASS | lint · typecheck · test · migration · build` · `PASS 14 Migration` · `PASS 9 مجموعه آزمون سبز` · `build_fingerprint = bundle_fingerprint = 32|56|14|f266f624358b5001c558a215c3c4536d` (bundle=183487 bytes).
+- `T-INV-01` سبز در ۳ دور: `ok|stock|other|spread_ms|overlap=5|95|0|365|99`، `active|on_hand|reserved|available|ledger=5|5|5|0|5`؛ درخواست ۱۰۱ → `FCO-1071`.
+- قرمز عمدی بدون دیتابیس دستی: `FCO_INV_BREAK=1` ⇒ `100|0|0` و `RED CONFIRMED` (exit 1).
+- سوئیت گام ۴ روی دیتابیس تازه سبز: `VISIBILITY` (۴ از ۷)، `SEARCH`، `CATEGORY`، `PRICE/STOCK`، `PAGING/GUARDS`، `DETAIL`، `PATH`، `APP-ROLE`، `INDEX`. قرمز عمدی با برداشتن گارد انتشار ⇒ `FAIL VISIBILITY: 6 محصول عمومی برگشت` (exit 3).
 
 ## [0.17.0] — ۱۴۰۵/۰۹/۰۴ (2026-11-25)
 

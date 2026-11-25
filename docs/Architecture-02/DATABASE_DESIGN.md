@@ -101,6 +101,8 @@ cat.product_media(id, product_id, variant_id null, storage_key, alt_text,
 ```
 - `sku` و `barcode` **یکتا در سطح کل** (`BRQ-01`، `FM-O-07`).
 - `variant` تنها سطحی است که موجودی/قیمت روی آن است.
+- جست‌وجوی عمومی در `0014`: `cat.normalize_text` (ی/ي، ک/ك، همزه، ة/ۀ، ZWNJ، ارقام) + پیکربندی `cat.fa` (دیکشنری `simple`) + GIN روی `cat.search_vector(title, description)`. عبارت کاربر با `cat.search_query` به `tsquery` امن تبدیل می‌شود (بدون خطای نحو).
+- خواندن عمومی فقط از `cat.public_product_ids` می‌گذرد: `status = 'published'` و `published_at <= now()`؛ قیمت از بازه مؤثر کانال (نه بازه آینده، نه کانال دیگر) و موجودی به‌صورت `on_hand - reserved - quarantined`.
 
 ### ۳.۳ قیمت (نسخه‌دار، `ADR-005`/Q-04)
 ```sql
@@ -291,7 +293,7 @@ RETURNING *;
 | `pricing.prices` | GiST روی بازه + `(variant_id, channel, effective_from DESC)` | قیمت مؤثر |
 | `sys.outbox` | partial `(available_at) WHERE processed_at IS NULL` | Worker |
 | `sys.audit_log` | `(entity_type, entity_id, created_at DESC)`، `(actor_id, created_at DESC)` | حسابرسی |
-| `cat.products` | GIN روی `to_tsvector('fco_fa', title || description)` | جست‌وجوی فارسی |
+| `cat.products` | GIN روی `cat.search_vector(title, description)` | جست‌وجوی فارسی (گام ۴) |
 | `crm.tickets` | `(assignee_id, status, sla_due_at)` | صف پشتیبانی |
 
 **قواعد:** هیچ ایندکس بدون کوئری متناظر · ایندکس روی ستون کم‌انتخاب ممنوع · قبل/بعد هر ایندکس جدید، `EXPLAIN (ANALYZE, BUFFERS)` ثبت شود.
