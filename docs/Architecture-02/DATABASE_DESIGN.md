@@ -161,6 +161,8 @@ inv.cost_layer_consumption(id, layer_id, order_line_id, qty int,
 
 **پیاده‌سازی (۱۴۰۵/۰۹/۰۴):** `0011_catalog_inventory` سه schema `cat`/`pricing`/`inv` را می‌سازد: یکتایی SKU/بارکد/slug، بازه قیمت با Exclusion GiST و ممنوعیت ویرایش/حذف، `stock_balance` با قید `reserved <= on_hand - quarantined`، دفتر گردش تغییرناپذیر (تریگر `sys.reject_mutation` + نبود GRANT)، رزرو فعال یکتا و لایه هزینه FIFO. `variants.color_id/size_id`، `reservations.order_line_id` و `grn_line_id` تا Migration جدول‌های مربوط (BR-2 گام ۲ / BR-3 / BR-4) بدون FK می‌مانند. تابع `inv.apply_movement` و رزرو اتمیک در گام ۳ همین BR می‌آید.
 
+**use-case کاتالوگ (۱۴۰۵/۰۹/۰۴):** `0012_catalog_usecases` چهار use-case امنیتی `cat.product_create`/`product_update` و `cat.variant_create`/`variant_update` را اضافه می‌کند (مجوز + Audit در همان تراکنش، کنترل تعارض با `expected_version`). همان Migration پنج شکاف ۰۰۱۱ را می‌بندد: نسخه و `updated_at` برای تنوع و `stock_balance`، سازگاری `superseded_by` با تنوع/کانال/بازه بعدی، قید شیء‌بودن `attributes`، و حذف قید اختراعی `sku = upper(sku)`.
+
 ### ۳.۶ سفارش
 ```sql
 oms.orders(id, order_number text unique not null, customer_id null,

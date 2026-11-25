@@ -1,6 +1,6 @@
 # تغییرات (CHANGELOG)
 
-> **وضعیت:** زنده · **نسخه:** v1.11 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۴
+> **وضعیت:** زنده · **نسخه:** v1.12 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۴
 > قالب بر پایه Keep a Changelog، تاریخ‌ها شمسی + ISO. هر تغییر در **رفتار، دامنه یا ساختار اسناد** یک ردیف اینجا دارد.
 > شاهد هر نسخه: `git show --stat <commit>`.
 > **مالک تاریخ تغییرات اسناد و مخزن.**
@@ -10,9 +10,30 @@
 ## [Unreleased]
 
 ### Planned
-- BR-2 گام ۲ به بعد: use-case محصول/تنوع، `inv.apply_movement` و رزرو، صفحات عمومی، پنل، آزمون هم‌زمانی
+- BR-2 گام ۳ به بعد: `inv.apply_movement` و رزرو اتمیک، صفحات عمومی، پنل، آزمون هم‌زمانی
 
 ---
+
+## [0.16.0] — ۱۴۰۵/۰۹/۰۴ (2026-11-25)
+
+### Added
+- `0012_catalog_usecases` — use-caseهای `cat.product_create`/`product_update` و `cat.variant_create`/`variant_update` با مجوز، اعتبارسنجی، کنترل تعارض نسخه و Audit در همان تراکنش؛ مجوزهای `catalog.product.write` و `catalog.variant.write` برای `R-SALES`.
+- سوئیت `0012_catalog_usecases_negative` — مجوز use-case، ورودی نامعتبر، یکتایی، تعارض نسخه، آرشیو و شاهد Audit.
+
+### Fixed (بازبینی گام ۱)
+- `cat.variants` نسخه گرفت و `inv.stock_balance` با هر به‌روزرسانی `version`/`updated_at` را تازه می‌کند.
+- `pricing.prices.superseded_by` فقط به قیمت بعدی همان تنوع/کانال اشاره می‌کند (`FCO-1052`).
+- `cat.products.attributes` باید شیء JSON باشد و قید اختراعی `sku = upper(sku)` حذف شد.
+- Audit ویرایش محصول اکنون `description` و `attributes` را هم ثبت می‌کند.
+
+### Changed
+- `scripts/ci.sh` — آزمون وجود ۴ use-case کاتالوگ و fingerprint شامل توابع `cat`/`pricing`/`inv`.
+- `DATABASE_DESIGN §3.5`، `TEST_STRATEGY §6`، `IMPLEMENTATION_PLAN §4.2`.
+
+### Verified
+- `PASS 12 Migration` · `PASS 7 مجموعه آزمون سبز` · `PASS ۴ use-case کاتالوگ` · `PASS بازگشت کامل و اجرای دوباره از صفر`.
+- `build_fingerprint = bundle_fingerprint = 32|45|12|b4cacaae1efb3f94836cc61c56f57738` (bundle=150756 bytes).
+- قرمز عمدی: حذف نگاشت `catalog.product.write` از `R-SALES` ⇒ `FCO-1003` در نخستین use-case (exit 3)؛ با Migration دست‌نخورده دوباره سبز شد.
 
 ## [0.15.0] — ۱۴۰۵/۰۹/۰۴ (2026-11-25)
 

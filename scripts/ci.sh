@@ -100,7 +100,7 @@ fingerprint() { # <db> — سطح API و تاریخچه Migration
   q "$1" "
     select (select count(*) from information_schema.tables where table_schema in ('iam','sys','cat','pricing','inv'))
         || '|' || (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-                    where n.nspname in ('iam','sys'))
+                    where n.nspname in ('iam','sys','cat','pricing','inv'))
         || '|' || (select count(*) from sys.schema_migrations)
         || '|' || (select coalesce(md5(string_agg(checksum, ',' order by version)), '-')
                      from sys.schema_migrations);"
@@ -190,6 +190,14 @@ stage_typecheck() {
         and p.proname in ('$(echo $funcs | sed "s/ /','/g")');")"
   [[ "$have" -ge 17 ]] || die "تابع(های) کلیدی غایب: $have از ۱۷"
   ok "۱۷ تابع کلیدی روی دیتابیس تازه وجود دارند"
+
+  local cat_have
+  cat_have="$(q "$DB_TYPECHECK" "select count(distinct p.proname) from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'cat'
+        and p.proname in ('product_create','product_update','variant_create','variant_update');")"
+  [[ "$cat_have" -ge 4 ]] || die "use-caseهای کاتالوگ غایب‌اند: $cat_have از ۴"
+  ok "۴ use-case کاتالوگ (محصول/تنوع) موجود است"
 
   drop_db "$DB_TYPECHECK"
 }
