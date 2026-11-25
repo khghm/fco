@@ -98,7 +98,7 @@ migration_files() {
 
 fingerprint() { # <db> — سطح API و تاریخچه Migration
   q "$1" "
-    select (select count(*) from information_schema.tables where table_schema in ('iam','sys'))
+    select (select count(*) from information_schema.tables where table_schema in ('iam','sys','cat','pricing','inv'))
         || '|' || (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
                     where n.nspname in ('iam','sys'))
         || '|' || (select count(*) from sys.schema_migrations)
@@ -173,13 +173,14 @@ stage_typecheck() {
   ok "همه Migrationها کامپایل شدند"
 
   step "typecheck | سطح API مورد انتظار"
-  local tables="iam.users iam.roles iam.permissions iam.user_roles iam.role_permissions iam.sessions iam.password_resets iam.mfa_factors iam.otp_requests iam.sod_role_conflicts sys.audit_log sys.outbox sys.inbox_events sys.idempotency_keys sys.job_runs sys.settings sys.setting_versions sys.schema_migrations sys.otp_spool"
-  local missing=""
+  local tables="iam.users iam.roles iam.permissions iam.user_roles iam.role_permissions iam.sessions iam.password_resets iam.mfa_factors iam.otp_requests iam.sod_role_conflicts sys.audit_log sys.outbox sys.inbox_events sys.idempotency_keys sys.job_runs sys.settings sys.setting_versions sys.schema_migrations sys.otp_spool cat.brands cat.categories cat.products cat.variants cat.product_media pricing.prices inv.warehouses inv.stock_balance inv.stock_ledger inv.reservations inv.cost_layers inv.cost_layer_consumption"
+  local missing="" count=0
   for t in $tables; do
     [[ "$(q "$DB_TYPECHECK" "select to_regclass('$t') is not null;")" = "t" ]] || missing="$missing $t"
+    count=$((count + 1))
   done
   [[ -z "$missing" ]] || die "جدول(های) غایب:$missing"
-  ok "۱۹ جدول کلیدی موجود است"
+  ok "$count جدول کلیدی موجود است"
 
   local funcs="health_report job_begin job_finish purge_expired_sessions run_session_cleanup outbox_emit outbox_claim inbox_consume audit_write audit_search setting_set authorize start_session authenticate revoke_session request_otp verify_otp"
   local have
@@ -213,8 +214,10 @@ stage_test() {
     suite=$((suite + 1))
   done < <(find "$TEST_DIR" -maxdepth 1 -type f -name '*.sql' | sort)
 
-  [[ "$suite" -eq 5 ]] || die "تعداد مجموعه آزمون $suite است، انتظار ۵"
-  ok "۵ مجموعه آزمون سبز"
+  local expected
+  expected="$(find "$TEST_DIR" -maxdepth 1 -type f -name '*.sql' | wc -l | tr -d ' ')"
+  [[ "$suite" -eq "$expected" ]] || die "تعداد مجموعه آزمون $suite است، انتظار $expected"
+  ok "$suite مجموعه آزمون سبز"
   drop_db "$DB_TEST"
 }
 
@@ -234,20 +237,27 @@ stage_migration() {
       || die "راه‌اندازی Postgres یکبارمصرف شکست خورد (تصویر ${FCO_CI_PG_IMAGE:-postgres:16-alpine} موجود است؟)"
     # trap در زمان خروج اجرا می‌شود و متغیر local آن موقع نیست؛ مقدار را می‌نویسیم.
     trap "docker rm -f '$name' >/dev/null 2>&1 || true" EXIT
-    # pg_isready می‌تواند به سرور موقتِ مرحله init پاسخ دهد که بعداً خاموش می‌شود؛
-    # پس تا وقتی یک کوئری واقعی جواب ندهد صبر می‌کنیم.
-    local ready=0
-    for i in $(seq 1 60); do
-      if docker exec "$name" psql -U "$DB_USER" -d postgres -tAc 'select 1' >/dev/null 2>&1; then
-        # موفقیت اول می‌تواند سرور موقت init باشد؛ باید پایدار بماند.
-        sleep 2
-        if docker exec "$name" psql -U "$DB_USER" -d postgres -tAc 'select 1' >/dev/null 2>&1; then
+    # pg_isready و حتی دو کوئری موفق می‌توانند به سرور موقتِ مرحله init پاسخ دهند
+    # که پس از init خاموش می‌شود و اتصال را می‌بندد. معیار پایدار: زمان شروع
+    # postmaster باید در دو پروب با فاصله ۳ ثانیه یکی بماند (جایگزینی init → واقعی
+    # این مقدار را عوض می‌کند).
+    # مهلت زمان‌محور است، نه تعدادی: init روی ماشین کند می‌تواند بیش از ۷۰ ثانیه
+    # طول بکشد و حلقه‌های عددی زودتر تمام می‌شوند.
+    local ready=0 start_time stable_time deadline=$((SECONDS + 180))
+    while [[ "$SECONDS" -lt "$deadline" ]]; do
+      start_time="$(docker exec "$name" psql -U "$DB_USER" -d postgres -tAc \
+        'select extract(epoch from pg_postmaster_start_time())::bigint' 2>/dev/null || true)"
+      if [[ -n "$start_time" ]]; then
+        sleep 3
+        stable_time="$(docker exec "$name" psql -U "$DB_USER" -d postgres -tAc \
+          'select extract(epoch from pg_postmaster_start_time())::bigint' 2>/dev/null || true)"
+        if [[ -n "$stable_time" && "$stable_time" = "$start_time" ]]; then
           ready=1; break
         fi
       fi
-      sleep 1
+      sleep 2
     done
-    [[ "$ready" -eq 1 ]] || die "Postgres یکبارمصرف در ۶۰ ثانیه آماده نشد"
+    [[ "$ready" -eq 1 ]] || die "Postgres یکبارمصرف در ۱۸۰ ثانیه پایدار نشد"
     printf 'server=disposable:%s\n' "$name"
     ( CONTAINER="$name"; export FCO_PG_CONTAINER="$name"; stage_migration_body )
     docker rm -f "$name" >/dev/null 2>&1 || true
@@ -295,8 +305,8 @@ stage_migration_body() {
 
   step "migration | down all → up (مسیر بازگشت)"
   migrate "$DB_MIGRATION" down all > /dev/null || die "down all شکست خورد"
-  [[ "$(q "$DB_MIGRATION" "select count(*) from information_schema.tables where table_schema in ('iam','sys');")" = "0" ]] \
-    || die "پس از down all جدولی در iam/sys ماند"
+  [[ "$(q "$DB_MIGRATION" "select count(*) from information_schema.tables where table_schema in ('iam','sys','cat','pricing','inv');")" = "0" ]] \
+    || die "پس از down all جدولی در iam/sys/cat/pricing/inv ماند"
   migrate "$DB_MIGRATION" up > /dev/null || die "up پس از بازگشت شکست خورد"
   migrate "$DB_MIGRATION" verify > /dev/null || die "verify پس از بازگشت قرمز شد"
   ok "بازگشت کامل و اجرای دوباره از صفر"

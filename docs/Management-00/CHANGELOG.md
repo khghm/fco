@@ -1,6 +1,6 @@
 # تغییرات (CHANGELOG)
 
-> **وضعیت:** زنده · **نسخه:** v1.10 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۴
+> **وضعیت:** زنده · **نسخه:** v1.11 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۴
 > قالب بر پایه Keep a Changelog، تاریخ‌ها شمسی + ISO. هر تغییر در **رفتار، دامنه یا ساختار اسناد** یک ردیف اینجا دارد.
 > شاهد هر نسخه: `git show --stat <commit>`.
 > **مالک تاریخ تغییرات اسناد و مخزن.**
@@ -10,9 +10,27 @@
 ## [Unreleased]
 
 ### Planned
-- BR-2: آداپتور پیامک، صفحه Audit، UI مشتری، فرایند Worker
+- BR-2 گام ۲ به بعد: use-case محصول/تنوع، `inv.apply_movement` و رزرو، صفحات عمومی، پنل، آزمون هم‌زمانی
 
 ---
+
+## [0.15.0] — ۱۴۰۵/۰۹/۰۴ (2026-11-25)
+
+### Added
+- `0011_catalog_inventory` — schemaهای `cat`/`pricing`/`inv`: برند/دسته/محصول/تنوع/رسانه، قیمت نسخه‌دار با Exclusion GiST، انبار/تجمیع/دفتر گردش/رزرو، و لایه هزینه FIFO؛ تنظیم نسخه‌دار `inv.reservation_ttl_minutes`.
+- سوئیت `0011_catalog_inventory_negative` — یکتایی کاتالوگ، بازه/تغییرناپذیری قیمت، قیدهای موجودی، ممنوعیت UPDATE/DELETE دفتر گردش، رزرو فعال یکتا، لایه هزینه و مرزهای نقش `fco_app`.
+
+### Changed
+- `scripts/ci.sh` — سوئیت‌های آزمون به‌صورت داینامیک شمرده می‌شوند (۶ مجموعه)، ۱۲ جدول جدید در سطح API، و fingerprint شامل `cat`/`pricing`/`inv`.
+- `DATABASE_DESIGN §3.5`، `TEST_STRATEGY §6`، `IMPLEMENTATION_PLAN §4.2`.
+
+### Fixed
+- آمادگی کانتینر یکبارمصرف Migration با ثبات `pg_postmaster_start_time` سنجیده می‌شود؛ دو کوئری موفق قبلی می‌توانست به سرور موقت init بچسبد و اتصال بعدی با `terminating connection` قطع شود.
+
+### Verified
+- `PASS 11 Migration با فایل بازگشت` · `PASS 31 جدول کلیدی` · `PASS 6 مجموعه آزمون سبز` · `PASS بازگشت کامل و اجرای دوباره از صفر`.
+- `build_fingerprint = bundle_fingerprint = 32|38|11|0bb1d8db128583840aaf61b6e801555f` (bundle=131599 bytes).
+- قرمز عمدی: حذف تریگر `stock_ledger_immutable` ⇒ `FAIL LEDGER: UPDATE مستقیم مجاز بود` (exit 3)؛ با Migration دست‌نخورده دوباره سبز شد.
 
 ## [0.14.0] — ۱۴۰۵/۰۹/۰۴ (2026-11-25)
 

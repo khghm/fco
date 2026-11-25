@@ -141,6 +141,8 @@
 
 **وضعیت M1 (۱۴۰۵/۰۹/۰۴):** آزمون پذیرش `T-M1-01` کل زنجیره را روی دیتابیس یکبارمصرف اجرا می‌کند (`scripts/m1-chain.sh` و `scenarios/m1_chain.sql`): ورود `R-OP` و `R-SYS`، Audit با `request_id`، پنج شکست Outbox تا DLQ، و Restore با اثر انگشت برابر. پنج دسترسی غیرمجاز و پشتیبان مخدوش رد شدند؛ قرمز عمدی با `grant insert on sys.audit_log to fco_app` و سپس `FAIL AUDIT: نوشتن مستقیم روی sys.audit_log مجاز بود` اثبات شد. این سناریو در CI پایه نیست و پیش از انتشار دستی اجرا می‌شود.
 
+**وضعیت BR-2 گام ۱ (۱۴۰۵/۰۹/۰۴):** `0011_catalog_inventory` با سوئیت `tests/0011_catalog_inventory_negative.sql` سنجیده شد: `T-INV-02` (UPDATE/DELETE دفتر گردش، هم برای مالک و هم برای `fco_app`)، یکتایی SKU/بارکد/slug، عدم‌هم‌پوشانی و تغییرناپذیری قیمت، قیدهای `stock_balance`، رزرو فعال یکتا و قیدهای لایه هزینه. `T-INV-01/03/04` پس از `inv.apply_movement` و Job انقضا در گام ۳ اجرا می‌شوند.
+
 ---
 
 ## ۷. Migration
