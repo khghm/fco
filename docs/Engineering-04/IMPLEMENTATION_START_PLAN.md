@@ -1,7 +1,7 @@
 # برنامه شروع پیاده‌سازی — BR-1 گام‌به‌گام
 
-> **وضعیت:** تأییدشده · **نسخه:** v1.7 · **تاریخ:** ۱۴۰۵/۰۹/۰۳
-> **خروجی ۱۰ از ۱۰** — وضعیت اجرا در انتهای همین سند ثبت می‌شود.
+> **وضعیت:** تأییدشده · **نسخه:** v1.8 · **تاریخ:** ۱۴۰۵/۰۹/۰۴
+> **خروجی ۱۰ از ۱۰ · M1 ✅** — وضعیت اجرا در انتهای همین سند ثبت می‌شود.
 > **مالک گام‌های BR-1 و تنها محل ثبت «انجام شد» با شاهد واقعی.**
 
 ## ۱. وضعیت محیط (اندازه‌گیری‌شده)
@@ -49,6 +49,8 @@
 > «یک کارمند با ورود امن و مجوز محدود وارد پنل می‌شود، هر کار حساسش در Audit ثبت می‌شود، یک Job پس‌زمینه اجرا و در صورت خطا در DLQ ظاهر می‌شود، و اگر سرور از دست برود، از پشتیبان با مستند بازیابی می‌شود.»
 
 اگر هر بخش قابل‌نمایش نباشد، BR-1 تمام نیست.
+
+M1 با `scripts/m1-chain.sh` روی دیتابیس یکبارمصرف پذیرفته شد؛ شاهد کامل در §۵.۱۱. این سناریو در CI پایه فعلی نیست و پیش از هر انتشار دستی اجرا می‌شود.
 
 ## ۵. ثبت اجرا (شاهد واقعی)
 
@@ -567,8 +569,60 @@ real    4m42.358s                                  (exit 0)
 
 **محدودیت‌ها:** هنوز کد اپ (TypeScript) وجود ندارد، بنابراین `lint` فقط اسناد/اسکریپت/SQL را می‌سنجد و `typecheck` همان کامپایل SQL است؛ ESLint/`tsc`/باندلر با نخستین کد اپ در BR-2 اضافه می‌شوند. `build` در این مرحله «بسته schema + manifest» است، نه باینری اپ. workflow گیت‌هاب محلی اجرا نشد (runner موجود نیست)؛ شاهد محلی همان `scripts/ci.sh all` است. زمان اجرای محلی روی ویندوز ۴ دقیقه و ۴۲ ثانیه است (سرباز `docker exec`) و در CI لینوکسی کمتر خواهد بود.
 
+### ۵.۱۱ Milestone M1 — زنجیره کامل (۱۴۰۵/۰۹/۰۴)
+
+`scripts/m1-chain.sh` دو دیتابیس یکبارمصرف می‌سازد (`fco_m1_chain` منبع و `fco_m1_restore` بازیابی) و دیتابیس توسعه `fco` را لمس نمی‌کند. سناریو در `packages/infrastructure/scenarios/m1_chain.sql` **با نقش اپ `fco_app`** اجرا می‌شود تا مسیر واقعی (تابع امنیتی، نه مالک schema) سنجیده شود.
+
+| گام زنجیره | عمل واقعی | شاهد |
+|---|---|---|
+| ورود | `iam.start_session` + `iam.authenticate` برای کارمند `R-OP` و مدیر `R-SYS` با MFA تأییدشده | دو `PASS LOGIN` |
+| مجوز محدود | `iam.authorize(R-OP, 'platform.job.run')` عمداً رد می‌شود | `FCO-1003` |
+| Audit | `sys.audit_write` با `request_id=m1-login-1` و جست‌وجوی مجاز با `sys.audit_search` | ۱ رکورد، `PASS AUDIT` |
+| Job | `sys.outbox_emit` + پنج دور `outbox_claim`/`outbox_fail` تا `dead_letter` | `PASS JOB`، `PASS DLQ` |
+| Restore | `pg_dump -Fc` → `pg_restore --exit-on-error --no-owner` و مقایسه اثر انگشت | اثر انگشت منبع = بازیابی |
+
+```
+$ bash scripts/m1-chain.sh
+== آماده‌سازی fco_m1_chain و اعمال Migrationها
+10 Migration اعمال شد.
+NOTICE:  PASS LOGIN-NEGATIVE | توکن ناشناس → FCO-1001: نشست معتبر نیست
+NOTICE:  PASS LOGIN | کارمند R-OP با نشست 708beac5-24e0-49fb-a765-9412c7802497 وارد شد
+NOTICE:  PASS AUTHZ-NEGATIVE | مجوز محدود → FCO-1003: مجوز platform.job.run برای این کاربر وجود ندارد
+NOTICE:  PASS AUDIT | رکورد 1 برای ورود ثبت شد
+NOTICE:  PASS AUDIT-NEGATIVE | بدون request_id → FCO-1018: request_id برای ردیابی الزامی است (T-PLT-05)
+NOTICE:  PASS AUDIT-NEGATIVE | نوشتن مستقیم → permission denied for table audit_log
+NOTICE:  PASS LOGIN | مدیر سیستم R-SYS با MFA وارد شد (نشست 354d8d02-77bc-4a75-9493-b2b502a8a03a)
+NOTICE:  PASS JOB | پس از 5 تلاش، خطا رویداد را به DLQ برد
+NOTICE:  PASS DLQ | مدیر سیستم ۱ رویداد DLQ را با مجوز دید
+NOTICE:  PASS DLQ-NEGATIVE | بدون platform.dlq.inspect → FCO-1003
+NOTICE:  PASS EVIDENCE | نشست=۲، Audit=۱، DLQ=۱ با last_error=m1: downstream unavailable (attempt 5)
+ ALL M1 CHAIN STEPS PASSED
+source_fingerprint=2|2|1|1|10|35fb5897e171d075d9e650906671fb5b
+restored_fingerprint=2|2|1|1|10|35fb5897e171d075d9e650906671fb5b
+PASS restore: داده و تاریخچه Migration برابر است (restore_seconds=43)
+restored_app_probe=1|1|false
+PASS grants: Audit و DLQ پس از بازیابی در دسترس‌اند و نوشتن مستقیم بسته است
+PASS negative: پشتیبان مخدوش رد شد
+M1 CHAIN PASS | login → audit → job → dlq → restore (43s)
+```
+
+**آزمون‌های منفی درون سناریو (همه واقعاً خطا دادند):** توکن ناشناس (`FCO-1001`)، Audit بدون `request_id` (`FCO-1018`)، نوشتن مستقیم روی `sys.audit_log` (`permission denied`)، جست‌وجوی Audit و فهرست DLQ بدون مجوز (`FCO-1003`). در گام بازیابی نیز پشتیبان مخدوش با ۱۰۲۴ بایت اول رد شد.
+
+**اثبات قرمز عمدی (گارد برداشته شد، سناریو قرمز شد):**
+
+```
+$ docker exec … psql -d fco_m1_red -c 'grant insert on sys.audit_log to fco_app;'
+$ FCO_M1_DB=fco_m1_red FCO_M1_REUSE_DB=1 bash scripts/m1-chain.sh
+ERROR:  FAIL AUDIT: نوشتن مستقیم روی sys.audit_log مجاز بود
+FAIL: سناریوی M1 قرمز شد (exit 3)          (exit 1)
+```
+
+پس از بازگرداندن Migrationها (بدون آن GRANT) همان سناریو دوباره سبز شد. `restore_seconds=43` روی همین میزبان ویندوزی ثبت شد.
+
+**محدودیت‌ها:** این سناریو در CI پایه (`scripts/ci.sh`) گنجانده نشده است؛ اجرای آن دستی و پیش از انتشار است. Worker اپ (Node/Bun) هنوز وجود ندارد و نقش Worker را همان توابع DB (`outbox_claim`/`outbox_fail`) بازی می‌کنند؛ با آمدن فرایند واقعی در BR-2، همین سناریو به آن وصل می‌شود. پشتیبان offsite و رمزنگاری همچنان منتظر Q-11 است.
+
 ## ۶. ریسک‌های شروع و پاسخ
 bun خراب → npm · نبود psql → `docker exec` · CRLF → `.gitattributes` · نبود Sandbox درگاه → BR-1 مستقل است · فشار دمو → M1 جایگزین دموی ظاهری.
 
 ## ۷. گام بعدی
-BR-1 بسته شد؛ گام بعدی **M1** (نمایش زنجیره کامل: ورود → Audit → Job → DLQ → Restore) و سپس BR-2 (آداپتور پیامک، صفحه Audit، UI مشتری، فرایند Worker) است.
+BR-1 و **M1** بسته شدند؛ گام بعدی **BR-2** (آداپتور پیامک، صفحه Audit، UI مشتری، فرایند Worker) است.

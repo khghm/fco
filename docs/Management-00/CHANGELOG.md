@@ -1,6 +1,6 @@
 # تغییرات (CHANGELOG)
 
-> **وضعیت:** زنده · **نسخه:** v1.9 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۳
+> **وضعیت:** زنده · **نسخه:** v1.10 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۴
 > قالب بر پایه Keep a Changelog، تاریخ‌ها شمسی + ISO. هر تغییر در **رفتار، دامنه یا ساختار اسناد** یک ردیف اینجا دارد.
 > شاهد هر نسخه: `git show --stat <commit>`.
 > **مالک تاریخ تغییرات اسناد و مخزن.**
@@ -10,9 +10,23 @@
 ## [Unreleased]
 
 ### Planned
-- گام ۱۰: CI پایه با خطای عمدی
-- M1: نمایش زنجیره کامل (ورود → Audit → Job → DLQ → Restore)
 - BR-2: آداپتور پیامک، صفحه Audit، UI مشتری، فرایند Worker
+
+---
+
+## [0.14.0] — ۱۴۰۵/۰۹/۰۴ (2026-11-25)
+
+### Added
+- `scripts/m1-chain.sh` — سناریوی پذیرش M1 روی دو دیتابیس یکبارمصرف: ورود، Audit، Job/Outbox تا DLQ، و `pg_dump`/`pg_restore` با مقایسه اثر انگشت.
+- `packages/infrastructure/scenarios/m1_chain.sql` — زنجیره با نقش `fco_app`، پنج آزمون منفی و شاهد پایانی `ALL M1 CHAIN STEPS PASSED`.
+
+### Changed
+- `IMPLEMENTATION_START_PLAN §4/§5.۱۱` (v1.8)، `TEST_STRATEGY §6` (`T-M1-01`)، `DECISION_LOG` D-20.
+
+### Verified
+- `M1 CHAIN PASS | login → audit → job → dlq → restore (43s)`؛ اثر انگشت منبع و بازیابی برابر: `2|2|1|1|10|35fb5897e171d075d9e650906671fb5b`.
+- قرمز عمدی: برداشتن گاردِ نوشتن مستقیم Audit ⇒ `FAIL AUDIT: نوشتن مستقیم روی sys.audit_log مجاز بود` و `FAIL: سناریوی M1 قرمز شد (exit 3)`؛ پس از بازگردانی، سناریو سبز شد.
+- پشتیبان مخدوش و کوئری‌های بدون مجوز (`platform.job.run`، `iam.audit.read`، `platform.dlq.inspect`) رد شدند؛ کوئری `fco_app` روی دیتابیس بازیابی `1|1|false` داد.
 
 ---
 
