@@ -221,6 +221,19 @@ stage_test() {
   recreate_db "$DB_TEST"
   migrate "$DB_TEST" up > /dev/null || die "Migration روی دیتابیس آزمون اجرا نشد"
 
+  local migration_count
+  [[ "$(q "$DB_TEST" "select count(*) from sys.schema_migrations where version = '0019';")" = "1" ]] \
+    || die "آزمون بازگشت داده به Migration 0019 نیاز دارد"
+  migration_count="$(q "$DB_TEST" "select count(*) from sys.schema_migrations where version > '0018';")"
+  migrate "$DB_TEST" down "$migration_count" > /dev/null \
+    || die "بازگشت به وضعیت پیش از Migration 0019 شکست خورد"
+  psql_file "$DB_TEST" "$TEST_DIR/fixtures/0019_reservation_expiry_failures_before.sql" \
+    || die "داده‌های قدیمی آزمون Migration 0019 ثبت نشدند"
+  migrate "$DB_TEST" up > /dev/null || die "اجرای Migration 0019 روی داده‌های قدیمی شکست خورد"
+  psql_file "$DB_TEST" "$TEST_DIR/fixtures/0019_reservation_expiry_failures_after.sql" \
+    || die "آزمون BACKFILL/DEFAULT Migration 0019 قرمز شد"
+  ok "Migration 0019 داده‌های قدیمی را جمع کرد و پیش‌فرضی باقی نگذاشت"
+
   local f suite=0
   while IFS= read -r f; do
     [[ -n "$f" ]] || continue
