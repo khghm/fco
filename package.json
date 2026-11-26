@@ -1,0 +1,21 @@
+{
+  "name": "fashion-commerce-os",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/application",
+    "packages/infrastructure"
+  ],
+  "scripts": {
+    "dev:shop": "npm run dev --workspace @fco/shop",
+    "dev:admin": "npm run dev --workspace @fco/admin",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.16"
+  }
+}

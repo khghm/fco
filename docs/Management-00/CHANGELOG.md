@@ -9,8 +9,24 @@
 
 ## [Unreleased]
 
+### Added
+- npm workspaces برای `apps/shop`، `apps/admin`، `packages/application` و `packages/infrastructure`؛ scaffold دو اپ Next.js با TypeScript strict.
+- نخستین برش کاتالوگ عمومی: صفحهٔ فارسی/RTL، `GET /api/v1/products`، اعتبارسنجی query و repository فقط‌خواندنی PostgreSQL با نقش `fco_app`.
+- آزمون‌های قرارداد API برای پاسخ موفق، ورودی نامعتبر و دسترس‌ناپذیری PostgreSQL.
+
+### Changed
+- وضعیت README و Project Master Control با پیشرفت BR-1/BR-2 هم‌راستا شد؛ قرارداد واقعی endpoint در `API_SPECIFICATION.md` ثبت شد و READMEهای scaffold با راهنمای مخزن جایگزین شدند.
+
+### Verified
+- دیتابیس جداگانهٔ `fco_catalog_e2e_20261126` با ۱۹ Migration موجود ساخته شد؛ fixture محصول آزمایشی را از `cat.search_products` خواند (۶۵۰٬۰۰۰ ریال، موجودی قابل‌فروش ۴). دیتابیس توسعهٔ `fco` تغییر نکرد.
+- `npm test` با `FCO_E2E_DATABASE_URL` روی handler واقعی API و PostgreSQL: ۱۳ آزمون سبز، شامل پاسخ `200` برای محصول seedشده و `400 / FCO-1001` برای ورودی نامعتبر. `npm run lint` و `npm run typecheck` سبز هستند.
+- تلاش برای آزمون HTTP با `next start` به‌علت `listen EACCES` روی loopback متوقف شد؛ آزمون شبکه‌ای باقی است.
+
+### Limitation
+- دیتابیس توسعهٔ `fco` هنوز Migrationهای کاتالوگ را ندارد؛ آزمون دیتابیس روی DB جدا انجام شد. صفحهٔ جزئیات، رسانه، نرخ‌محدودسازی، عملیات مدیریت و آزمون HTTP/E2E همچنان بازند.
+
 ### Planned
-- BR-2 گام ۵ به بعد: رندر صفحات عمومی پس از اسکلت اپ (D-05) و پنل محصول/قیمت
+- ادامهٔ BR-2: جزئیات محصول/دسته و رسانه، پنل محصول/قیمت، نرخ‌محدودسازی و آزمون E2E؛ سپس BR-3 تا BR-5 طبق گیت‌های پذیرش.
 
 ---
 

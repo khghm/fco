@@ -176,7 +176,10 @@ quality/         Micro-UX و کاتالوگ شکست (پشتیبان کیفیت)
 | اسکلت پوشه‌ها | برقرار | `apps/`, `packages/`, `infra/` |
 | پیکربندی Docker | معتبر | `docker compose config` exit 0 |
 | راه‌اندازی سرویس‌های محلی | ناقص (تصویر S3 در دسترس نیست) | `Engineering-04/IMPLEMENTATION_START_PLAN.md §5` |
-| Migration و کد محصول | شروع نشده | BR-1 گام ۴ به بعد |
+| BR-1 | بسته؛ M1 شامل ورود محدود، Audit، Job/DLQ و بازیابی پذیرفته شده | `Engineering-04/IMPLEMENTATION_START_PLAN.md §3، §5.۱۱` |
+| لایهٔ دادهٔ BR-2 | کاتالوگ، قیمت، موجودی، رزرو و جست‌وجوی عمومی تا Migration 0019 پیاده و آزموده شده | `packages/infrastructure/migrations/0011..0019`، `Engineering-04/TEST_STRATEGY.md §4.1` |
+| اپ‌های فروشگاه/مدیریت | workspaceهای Next.js ساخته شده‌اند؛ مسیر عمومی کاتالوگ در حال تکمیل است؛ پنل عملیاتی هنوز فعال نیست | `apps/shop/`، `apps/admin/`، `product/RELEASE_PLAN.md` |
+| G1 / سفارش end-to-end | باز؛ هنوز سفارش واقعی از فروشگاه تا تحویل اجرا نمی‌شود | `product/RELEASE_PLAN.md §3` |
 
 ---
 

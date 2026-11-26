@@ -2,8 +2,8 @@
 
 پلتفرم یکپارچه تجارت و مدیریت کسب‌وکار پوشاک — Self-hosted · فارسی/RTL · Production-grade.
 
-> **وضعیت پروژه:** فاز ۰ طراحی بسته شده (G0)؛ در حال اجرای **BR-1** (پایه، هویت و اعتماد).
-> هیچ قابلیت محصولی هنوز پیاده‌سازی نشده است. وضعیت هر گام با شاهد واقعی در `docs/Engineering-04/IMPLEMENTATION_START_PLAN.md` ثبت می‌شود.
+> **وضعیت پروژه:** فاز ۰ طراحی بسته شده (G0) و BR-1 با شاهد M1 پذیرفته شده است. BR-2 در حال اجراست: مدل و منطق کاتالوگ/موجودی و لایهٔ خواندن عمومی در دیتابیس وجود دارند؛ رابط‌های فروشگاه و مدیریت تازه در حال ساخته‌شدن‌اند.
+> سامانه هنوز برای فروش واقعی کامل نیست: BR-2 باید از مسیر UI/API end-to-end بسته شود و BR-3 تا BR-5 پیاده نشده‌اند. وضعیت هر گام با شاهد در `docs/Engineering-04/IMPLEMENTATION_START_PLAN.md` ثبت می‌شود.
 
 ## مستندات
 
@@ -58,6 +58,8 @@ docs/          مستندات (منبع حقیقت دانش پروژه)
 - Node.js 24 · **npm** (مدیر بسته انتخابی؛ `bun` روی این ماشین خراب است) — وضعیت اندازه‌گیری‌شده: `docs/Engineering-04/IMPLEMENTATION_START_PLAN.md §1`
 - Docker برای سرویس‌های محلی
 - `psql` نصب نیست → از `docker exec` استفاده کنید
+- workspaceهای npm: `npm install`، سپس `npm run dev:shop` یا `npm run dev:admin`
+- برای اجرای فروشگاه، `.env.example` را به `apps/shop/.env.local` کپی کنید؛ مقادیر محلی را با محیط خود تنظیم کنید.
 
 ```bash
 # راه‌اندازی سرویس‌های محلی
@@ -66,6 +68,17 @@ docker compose -f infra/compose/docker-compose.yml up -d
 # بررسی سلامت
 docker compose -f infra/compose/docker-compose.yml ps
 ```
+
+## وضعیت اتصال کاتالوگ
+
+در ۲۰۲۶-۱۱-۲۶، دیتابیس جداگانهٔ `fco_catalog_e2e_20261126` با ۱۹ Migration موجود ساخته و با یک محصول آزمایشی seed شد؛ دیتابیس توسعهٔ `fco` دست‌نخورده ماند. آزمون opt-in در [`route.integration.test.ts`](apps/shop/src/app/api/v1/products/route.integration.test.ts) مستقیماً handler را با PostgreSQL واقعی صدا می‌زند و پاسخ موفق (قیمت ۶۵۰٬۰۰۰ ریال، موجودی قابل‌فروش ۴) و خطای ورودی `400 / FCO-1001` را می‌سنجد:
+
+```powershell
+$env:FCO_E2E_DATABASE_URL = "<connection string for the isolated E2E database>"
+npm test
+```
+
+آزمون handler با اتصال واقعی سبز است؛ بررسی HTTP از طریق سرور Next.js هنوز انجام نشده، چون محیط در تلاش برای listen روی loopback با `EACCES` پاسخ داد. جزئیات محصول، رسانه و سایر محدودیت‌های برش در `docs/Architecture-02/API_SPECIFICATION.md` ثبت شده‌اند.
 
 ## قواعد غیرقابل‌مذاکره
 

@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+  --ink: #1f2925;
+  --muted: #68756e;
+  --line: #e4e9e5;
+  --surface: #ffffff;
+  --canvas: #f7f8f6;
+  --accent: #28634e;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: Tahoma, Arial, sans-serif;
+}
+
+.admin-shell {
+  width: min(960px, calc(100% - 40px));
+  margin-inline: auto;
+}
+
+.admin-header {
+  min-height: 76px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.admin-header a {
+  color: var(--accent);
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+}
+
+.admin-shell section {
+  max-width: 620px;
+  margin: 15vh auto;
+  padding: 36px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.admin-eyebrow {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.admin-shell section > p:last-child {
+  color: var(--muted);
+  line-height: 1.9;
+}
+
+@media (max-width: 540px) {
+  .admin-shell {
+    width: min(100% - 28px, 960px);
+  }
+
+  .admin-shell section {
+    padding: 24px;
+  }
+}

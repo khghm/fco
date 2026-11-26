@@ -1,0 +1,9 @@
+{
+  "name": "@fco/application",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./catalog": "./src/catalog.ts"
+  }
+}
