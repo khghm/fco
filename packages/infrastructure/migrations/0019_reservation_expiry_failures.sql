@@ -34,31 +34,34 @@ alter table inv.reservation_expiry_failures
   add constraint reservation_expiry_failures_failures_check check (failures >= 1);
 
 -- ردیف‌های per-slot موجود (اگر 0017 در محیطی اجرا شده باشد) به یک ردیف برای هر
--- رزرو جمع می‌شوند: شمار = تعداد ردیف‌های قبلی، تاریخ نخستین = قدیمی‌ترین، و
--- ردیف جدیدترین (occurred_at/id) می‌ماند تا آخرین run_id و پیام حفظ شود.
-with keep as (
-  select reservation_id,
-         count(*)::integer as total,
-         min(occurred_at) as first_at,
-         (array_agg(id order by occurred_at desc, id desc))[1] as keep_id
-    from inv.reservation_expiry_failures
-   group by reservation_id
-)
+-- رزرو جمع می‌شوند: شمار = تعداد ردیف‌های قبلی، تاریخ نخستین = قدیمی‌ترین. هر دو
+-- مقدار برای همه ردیف‌های یک رزرو یکسان است، پس یک‌بار روی همه نوشته می‌شوند و
+-- بعد فقط جدیدترین (occurred_at/id) می‌ماند تا آخرین run_id و پیام حفظ شود.
 update inv.reservation_expiry_failures f
-   set failures = keep.total,
-       first_failed_at = keep.first_at
-  from keep
- where f.id = keep.keep_id;
+   set failures       = s.total,
+       first_failed_at = s.first_at
+  from (select reservation_id,
+               count(*)::integer as total,
+               min(occurred_at)  as first_at
+          from inv.reservation_expiry_failures
+         group by reservation_id) s
+ where f.reservation_id = s.reservation_id;
 
-delete from inv.reservation_expiry_failures f
- using (
-   select reservation_id,
-          (array_agg(id order by occurred_at desc, id desc))[1] as keep_id
-     from inv.reservation_expiry_failures
-    group by reservation_id
- ) d
- where f.reservation_id = d.reservation_id
-   and f.id <> d.keep_id;
+delete from inv.reservation_expiry_failures
+ where id in (
+   select ranked.id
+     from (select id,
+                  row_number() over (partition by reservation_id
+                                         order by occurred_at desc, id desc) as rn
+             from inv.reservation_expiry_failures) ranked
+    where ranked.rn > 1);
+
+-- هیچ پیش‌فرضی نمی‌ماند: `first_failed_at default now()` همان اشتباهی است که این
+-- Migration رفع کرد (ابتدای تراکنش، نه لحظه شکست). درج بدون این دو ستون باید
+-- صریحاً شکست بخورد، نه مقدار جانشین بگیرد.
+alter table inv.reservation_expiry_failures
+  alter column failures       drop default,
+  alter column first_failed_at drop default;
 
 drop index if exists inv.reservation_expiry_failures_reservation_idx;
 
@@ -139,7 +142,7 @@ begin
            set run_id         = excluded.run_id,
                error_sqlstate = excluded.error_sqlstate,
                message        = excluded.message,
-               occurred_at    = v_failed_at,
+               occurred_at    = excluded.occurred_at,
                failures       = inv.reservation_expiry_failures.failures + 1;
         -- `first_failed_at` عمداً در این فهرست نیست: تاریخ نخستین شکست می‌ماند.
       end;

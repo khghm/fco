@@ -17,7 +17,7 @@
 ## [0.20.2] — ۱۴۰۵/۰۹/۰۵ (2026-11-26)
 
 ### Changed (ادغام سه Migration منتشرنشده در `0019_reservation_expiry_failures`)
-- **نگهداشت ساختاری شد، نه هرس:** یکتایی `reservation_id` ⇒ یک ردیف برای هر رزرو؛ درج با `on conflict … do update` که آخرین `run_id`/`sqlstate`/`message`/`occurred_at` را می‌نویسد، `failures` را یک واحد بالا می‌برد و `first_failed_at` (تاریخ نخستین شکست) را بازنویسی نمی‌کند. رشد جدول = تعداد رزروهایی که تا امروز شکست خورده‌اند، نه تعداد slotها؛ هیچ `delete`ی در مسیر شکست نیست.
+- **نگهداشت ساختاری شد، نه هرس:** یکتایی `reservation_id` ⇒ یک ردیف برای هر رزرو؛ درج با `on conflict … do update` که آخرین `run_id`/`sqlstate`/`message`/`occurred_at` را می‌نویسد، `failures` را یک واحد بالا می‌برد و `first_failed_at` (تاریخ نخستین شکست) را بازنویسی نمی‌کند. هیچ پیش‌فرضی روی این دو ستون نمی‌ماند (به‌ویژه `first_failed_at default now()` که همان اشتباه «ابتدای تراکنش» بود)، پس درج بدون آن‌ها صریحاً شکست می‌خورد؛ ردیف‌های per-slot موجود با یک گروه‌بندی جمع و بعد تکثیرشان حذف می‌شود. رشد جدول = تعداد رزروهایی که تا امروز شکست خورده‌اند، نه تعداد slotها؛ هیچ `delete`ی در مسیر شکست نیست.
 - **زمان واقعی شکست:** `clock_timestamp()` جای `now()` (چه بسا `now()` ابتدای تراکنش است و همه شکست‌های یک دسته را یک لحظه می‌کرد)؛ پس «نخستین» و «آخرین» شکست قابل تفکیک و قابل آزمون‌اند.
 - **رصد:** `sys.health_report` بخش `reservations` گرفت — `expiry_failures`، `expiry_failures_open` (رزروهایی که هنوز `active`اند و موجودی رزروشده را قفل نگه داشته‌اند)، `oldest_first_failed_at` و `top_failures` (۱۰ رزرو بدتر با تاریخ‌ها، `sqlstate`، `status`، انبار و تنوع). کلید `max_failures` ساخته نشد چون همیشه `top_failures[0].failures` است.
 - **چیزهایی که هرگز ساخته نمی‌شوند:** سقف `job.reservation_expiry.failure_keep` (که پس از ساخت با `sys.setting_versions … on delete restrict` برای همیشه در schema می‌ماند)، هرس داخل بلوک `exception` و کد خطای `FCO-1079`.
@@ -33,7 +33,8 @@
 - قرمز عمدی B: بازگشت به `now()` ⇒ `FAIL SINGLE: زمان آخرین شکست در دور 2 جلو نرفت (… ⇒ همان لحظه)` (exit 3).
 - قرمز عمدی C: حذف بخش `reservations` از گزارش ⇒ `FAIL HEALTH: بخش reservations در گزارش نیست` (exit 3).
 - قرمز عمدی D: برداشتن فیلتر `status='active'` ⇒ `FAIL HEALTH: expiry_failures_open=3 (انتظار 2)` (exit 3).
-- CI کامل روی دیتابیس تازه (۱۹ Migration): `PASS 19 Migration`، `PASS 14 مجموعه آزمون سبز`، `PASS بسته خودکفاست و fingerprint برابر است`، lint/typecheck/test/build سبز، `CI_EXIT=0`؛ `build_fingerprint` و `bundle_fingerprint` هر دو `33|57|19|6c6bfd99342cfead302a5f1dc1502634`.
+- CI کامل روی دیتابیس تازه (۱۹ Migration): `PASS 19 Migration`، `PASS 14 مجموعه آزمون سبز`، `PASS بسته خودکفاست و fingerprint برابر است`، lint/typecheck/test/build سبز، `CI_EXIT=0`؛ `build_fingerprint` و `bundle_fingerprint` هر دو `33|57|19|f8b394b7dc45c72e8d59e0af98450fb3`.
+- بازگشت داده (DB متوقف روی 0018 با ۳ ردیف per-slot قدیمی): `PASS BACKFILL` — یک ردیف با `failures=3`، پیام/`run_id` جدیدترین، `first_failed_at` = قدیمی‌ترین، و درج بدون دو ستون با `not_null_violation` شکست خورد.
 
 ### Limitation
 - ردیف رزروِ رفع‌شده می‌ماند (یک ردیف، بدون تاریخچه per-slot) تا خود رزرو حذف شود؛ جاروی سنی/عمومی این جدول به یک Job نگهداشت `sys.job_runs` گره خورده که ADR-010 اعدادش را به پیکربندی سپرده است.
