@@ -1,6 +1,6 @@
 # تغییرات (CHANGELOG)
 
-> **وضعیت:** زنده · **نسخه:** v1.16 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۴
+> **وضعیت:** زنده · **نسخه:** v1.17 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۵
 > قالب بر پایه Keep a Changelog، تاریخ‌ها شمسی + ISO. هر تغییر در **رفتار، دامنه یا ساختار اسناد** یک ردیف اینجا دارد.
 > شاهد هر نسخه: `git show --stat <commit>`.
 > **مالک تاریخ تغییرات اسناد و مخزن.**
@@ -13,6 +13,25 @@
 - BR-2 گام ۵ به بعد: رندر صفحات عمومی پس از اسکلت اپ (D-05) و پنل محصول/قیمت
 
 ---
+
+## [0.20.1] — ۱۴۰۵/۰۹/۰۵ (2026-11-25)
+
+### Fixed (بازبینی تازه روی `f2a7c7c`)
+- **گرسنگی صف انقضا:** رزرو خراب در `0017` عمداً `active` می‌ماند و دسته با `order by expires_at` پر می‌شد، پس رزرو خراب قدیمی همیشه سر صف بود؛ وقتی شمار رزروهای خراب به اندازه `job.reservation_expiry.batch` می‌رسید، هیچ رزرو سالمی آزاد نمی‌شد و موجودی رزروشده قفل می‌ماند — در حالی که Job `succeeded` گزارش می‌کرد. `0018_reservation_expiry_fairness` ترتیب دسته را دوکلیدی کرد (`exists` روی جدول خطا، سپس `expires_at`) تا رزرو سابقه‌دار آخر صف برود؛ هیچ رزروی نادیده گرفته نمی‌شود و در صف خالی بازآزمون می‌شود.
+- ایندکس `inv.reservation_expiry_failures_run_idx` روی `run_id` (FK با `on delete cascade`، پیش‌تر هر حذف `sys.job_runs` کل جدول خطا را اسکن می‌کرد).
+
+### Added
+- Migration `0018_reservation_expiry_fairness` (+`.down.sql` که تعریف 0017 را برمی‌گرداند و ایندکس را می‌اندازد) و سوئیت `0018_reservation_expiry_fairness_negative` — `T-INV-07` (بازبینی دوم): `PASS SEED`/`PASS STARVE`/`PASS RETRYQ`/`PASS HEAL`/`PASS CLEAN`/`PASS INDEX`.
+- پوشش اضافی در همان سوئیت: اجرای بدون شکست باید `sys.job_runs.error = NULL` بگذارد (پیش‌تر فقط وجود یادداشت در شکست جزئی آزموده شده بود).
+
+### Changed
+- `DATABASE_DESIGN §3.5` (اولویت صف + محدودیت باقی‌مانده)، `TEST_STRATEGY §4.1` (`T-INV-07` بازبینی دوم)، `IMPLEMENTATION_PLAN §4.2`.
+
+### Verified
+- `CI PASS | lint · typecheck · test · migration · build` · `PASS 18 Migration` · `PASS 13 مجموعه آزمون سبز` · `build_fingerprint = bundle_fingerprint = 33|57|18|736ec5c0c0d2da81e4746c51162c771b` (bundle=210507 bytes، exit 0).
+- سوئیت 0018: `PASS SEED` (`expired=2`، `failed=2`)، `PASS STARVE` (دسته ۲، دو رزرو سالم آزاد، `failed=0`)، `PASS RETRYQ` (۴ ردیف `23514`)، `PASS HEAL`، `PASS CLEAN`، `PASS INDEX`.
+- سوئیت 0017 روی 0018 بدون تغییر سبز ماند (`PASS BATCH`/`ISOLATION`/`LOG`/`AUDIT`/`JOB`/`SLOT`/`RETRY`/`APP-ROLE`).
+- قرمز عمدی: برگرداندن ترتیب 0017 ⇒ `FAIL STARVE: expired=0 failed=2 — صف خراب جای رزرو سالم را گرفت` (exit 3)، سپس سبز مجدد.
 
 ## [0.20.0] — ۱۴۰۵/۰۹/۰۴ (2026-11-25)
 
