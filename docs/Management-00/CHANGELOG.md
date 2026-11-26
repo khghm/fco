@@ -1,6 +1,6 @@
 # تغییرات (CHANGELOG)
 
-> **وضعیت:** زنده · **نسخه:** v1.20 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۵
+> **وضعیت:** زنده · **نسخه:** v1.21 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۵
 > قالب بر پایه Keep a Changelog، تاریخ‌ها شمسی + ISO. هر تغییر در **رفتار، دامنه یا ساختار اسناد** یک ردیف اینجا دارد.
 > شاهد هر نسخه: `git show --stat <commit>`.
 > **مالک تاریخ تغییرات اسناد و مخزن.**
@@ -13,6 +13,18 @@
 - BR-2 گام ۵ به بعد: رندر صفحات عمومی پس از اسکلت اپ (D-05) و پنل محصول/قیمت
 
 ---
+
+## [0.20.5] — ۱۴۰۵/۰۹/۰۵ (2026-11-26)
+
+### Changed (بازبینی تازه روی `feea3f2`: سنجه‌های گزارش رصد)
+- **انتظارهای `health_report` به مقایسه دقیق رسید:** `expiry_failures`، `expiry_failures_open`، `max_failures` و `oldest_first_failed_at` حالا با همان کوئری‌هایی که آزمون از جدول می‌گیرد مقایسه می‌شوند و تاریخ‌های `top_failures` باید عیناً برابر جدول باشند (پیش‌تر نبودنشان و «بزرگ‌تر از صفر بودن» سنجیده می‌شد).
+- فیکسچر سوئیت `0021` یک رزرو «شکست‌خورده و سپس رفع‌شده» گرفت، پس `expiry_failures_open` از `expiry_failures` تفکیک‌شدنی است و `status=released` هم در فهرست دیده می‌شود.
+- هیچ Migration‌ای در این بازبینی تغییر نکرد؛ تنها سوئیت و اسناد. (کد بی‌مصرفی که در دو Migration منتشرنشده یافت شد — `max_failures` تکراری با `top_failures[0].failures` و تنظیم بازنشسته `failure_keep` از 0019 — به تصمیم ادغام 0019–0021 گره خورده است.)
+
+### Verified
+- `CI PASS | lint · typecheck · test · migration · build` · `PASS 21 Migration` · `PASS 15 مجموعه آزمون سبز` · `build_fingerprint = bundle_fingerprint = 33|57|21|6c484cd5426d87060cbefdbb5f4c53c4` (exit 0؛ بدون تغییر Migration، پس fingerprint مثل 0.20.4 مانده).
+- سوئیت 0021 روی دیتابیس تازه با ۲۱ Migration: `PASS HEALTH | کل/باز/بیشینه دقیقاً 2/1/3`، `PASS TIME`، `PASS PERM`.
+- قرمز عمدی D–G (هر چهار exit 3): برداشتن فیلتر `status='active'` ⇒ `FAIL HEALTH: expiry_failures_open=2 (انتظار 1)`؛ `max`→`min` ⇒ `max_failures=1 (انتظار 3)`؛ `occurred_at` جای `first_failed_at` ⇒ `FAIL HEALTH: first_failed_at گزارش … (جدول …)`؛ `order by failures asc` ⇒ `FAIL HEALTH: فهرست top_failures با بیشترین شکست مرتب نشده است`.
 
 ## [0.20.4] — ۱۴۰۵/۰۹/۰۵ (2026-11-26)
 

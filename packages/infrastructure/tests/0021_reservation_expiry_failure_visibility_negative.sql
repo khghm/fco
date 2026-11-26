@@ -77,10 +77,36 @@ declare
   v_first2  timestamptz;
   v_last2   timestamptz;
   v_cnt     integer;
+  v_total   integer;
+  v_open    integer;
+  v_max     integer;
+  v_oldest  timestamptz;
   r_broken  uuid;
+  r_healed  uuid;
   r_healthy uuid;
   i         integer;
 begin
+  -- یک رزرو که شکست می‌خورد و بعد داده‌اش رفع می‌شود: ردیفش می‌ماند ولی دیگر
+  -- `open` نیست؛ همین ردیف است که «شمار کل» را از «باز» تفکیک می‌کند.
+  r_healed := inv.reserve(v_sales, 'd7000000-0000-0000-0000-000000000003', v_wh, v_a, 2, 30);
+  update inv.reservations set created_at = now() - interval '40 minutes',
+                              expires_at = now() - interval '20 minutes'
+   where id = r_healed;
+  update inv.stock_balance set reserved = 0 where warehouse_id = v_wh and variant_id = v_a;
+
+  select * into v_run from inv.expire_reservations(v_admin, v_slot - interval '2 hours', 1);
+  if v_run.outcome <> 'ran' or v_run.failed <> 1 then
+    raise exception 'FAIL SEED: رزرو رفع‌شدنی شکست نخورد (%/%/%)',
+      v_run.outcome, v_run.expired, v_run.failed;
+  end if;
+
+  update inv.stock_balance set reserved = 2 where warehouse_id = v_wh and variant_id = v_a;
+  select * into v_run from inv.expire_reservations(v_admin, v_slot - interval '1 hour', 1);
+  if v_run.outcome <> 'ran' or v_run.expired <> 1 or v_run.failed <> 0 then
+    raise exception 'FAIL SEED: رزرو رفع‌شده آزاد نشد (%/%/%)',
+      v_run.outcome, v_run.expired, v_run.failed;
+  end if;
+
   r_broken := inv.reserve(v_sales, 'd7000000-0000-0000-0000-000000000001', v_wh, v_b, 3, 30);
   update inv.reservations set created_at = now() - interval '30 minutes',
                               expires_at = now() - interval '10 minutes'
@@ -125,27 +151,43 @@ begin
   -- ۲) ------------------------------------ گزارش رصد: رزروهای مکرراً خراب
   r_healthy := inv.reserve(v_sales, 'd7000000-0000-0000-0000-000000000002', v_wh, v_a, 1, 600);
 
+  -- انتظارها از خود جدول خوانده می‌شوند تا مقایسه دقیق باشد، نه «بزرگ‌تر از صفر».
+  select count(*) into v_total from inv.reservation_expiry_failures;
+  select count(*) into v_open
+    from inv.reservation_expiry_failures f
+    join inv.reservations r on r.id = f.reservation_id
+   where r.status = 'active';
+  select max(f.failures), min(f.first_failed_at) into v_max, v_oldest
+    from inv.reservation_expiry_failures f;
+
+  if v_total <> 2 or v_open <> 1 or v_max <> 3 then
+    raise exception 'FAIL HEALTH: داده آزمون نامنتظر است (total=% open=% max=%)',
+      v_total, v_open, v_max;
+  end if;
+
   v_report := sys.health_report(v_admin);
   if v_report -> 'reservations' is null then
     raise exception 'FAIL HEALTH: بخش reservations در گزارش نیست: %', v_report;
   end if;
 
-  if (v_report -> 'reservations' ->> 'expiry_failures')::integer < 1 then
-    raise exception 'FAIL HEALTH: شمار رزروهای شکست‌خورده کم است: %',
-      v_report -> 'reservations' ->> 'expiry_failures';
+  if (v_report -> 'reservations' ->> 'expiry_failures')::integer <> v_total then
+    raise exception 'FAIL HEALTH: expiry_failures=% (انتظار %)',
+      v_report -> 'reservations' ->> 'expiry_failures', v_total;
   end if;
 
-  if (v_report -> 'reservations' ->> 'expiry_failures_open')::integer < 1 then
-    raise exception 'FAIL HEALTH: رزرو شکست‌خورده‌ای که هنوز active است گزارش نشد: %',
-      v_report -> 'reservations' ->> 'expiry_failures_open';
+  if (v_report -> 'reservations' ->> 'expiry_failures_open')::integer <> v_open then
+    raise exception 'FAIL HEALTH: expiry_failures_open=% (انتظار %) — رزرو رفع‌شده نباید open شمرده شود',
+      v_report -> 'reservations' ->> 'expiry_failures_open', v_open;
   end if;
 
-  if (v_report -> 'reservations' ->> 'max_failures')::integer <> 3 then
-    raise exception 'FAIL HEALTH: max_failures=% (انتظار ۳)', v_report -> 'reservations' ->> 'max_failures';
+  if (v_report -> 'reservations' ->> 'max_failures')::integer <> v_max then
+    raise exception 'FAIL HEALTH: max_failures=% (انتظار %)',
+      v_report -> 'reservations' ->> 'max_failures', v_max;
   end if;
 
-  if v_report -> 'reservations' ->> 'oldest_first_failed_at' is null then
-    raise exception 'FAIL HEALTH: قدیمی‌ترین تاریخ نخستین شکست گزارش نشد';
+  if (v_report -> 'reservations' ->> 'oldest_first_failed_at')::timestamptz <> v_oldest then
+    raise exception 'FAIL HEALTH: oldest_first_failed_at=% (انتظار %)',
+      v_report -> 'reservations' ->> 'oldest_first_failed_at', v_oldest;
   end if;
 
   select e into v_row
@@ -164,8 +206,24 @@ begin
   if v_row ->> 'error_sqlstate' <> '23514' then
     raise exception 'FAIL HEALTH: sqlstate در فهرست % است (انتظار 23514)', v_row ->> 'error_sqlstate';
   end if;
-  if v_row ->> 'first_failed_at' is null or v_row ->> 'occurred_at' is null then
-    raise exception 'FAIL HEALTH: تاریخ‌های شکست در فهرست نیست: %', v_row;
+  -- تاریخ‌های گزارش باید همان تاریخ‌های جدول باشند، نه فقط پر شده.
+  if (v_row ->> 'first_failed_at')::timestamptz <> v_first then
+    raise exception 'FAIL HEALTH: first_failed_at گزارش % است (جدول %)',
+      v_row ->> 'first_failed_at', v_first;
+  end if;
+  if (v_row ->> 'occurred_at')::timestamptz <> v_last then
+    raise exception 'FAIL HEALTH: occurred_at گزارش % است (جدول %)',
+      v_row ->> 'occurred_at', v_last;
+  end if;
+
+  -- رزرو رفع‌شده با وضعیت خودش در فهرست می‌ماند، ولی open شمرده نمی‌شود.
+  select count(*) into v_cnt
+    from jsonb_array_elements(v_report -> 'reservations' -> 'top_failures') e
+   where e ->> 'reservation_id' = r_healed::text
+     and e ->> 'status' = 'released';
+  if v_cnt <> 1 then
+    raise exception 'FAIL HEALTH: رزرو رفع‌شده با status=released در فهرست نیست: %',
+      v_report -> 'reservations' -> 'top_failures';
   end if;
 
   if exists (
@@ -176,10 +234,11 @@ begin
   end if;
 
   if (select (e ->> 'failures')::integer
-        from jsonb_array_elements(v_report -> 'reservations' -> 'top_failures') e limit 1) <> 3 then
+        from jsonb_array_elements(v_report -> 'reservations' -> 'top_failures') e limit 1) <> v_max then
     raise exception 'FAIL HEALTH: فهرست top_failures با بیشترین شکست مرتب نشده است';
   end if;
-  raise notice 'PASS HEALTH | رزرو خراب با failures=3، وضعیت active و sqlstate=23514 در گزارش دیده شد؛ رزرو سالم نیامد';
+  raise notice 'PASS HEALTH | کل/باز/بیشینه دقیقاً %/%/% خوانده شد، تاریخ‌های گزارش برابر جدول‌اند و رزرو رفع‌شده با status=released در فهرست است',
+    v_total, v_open, v_max;
 
   -- ۳) ------------------------------------------- گزارش بدون مجوز خوانده نشود
   begin
