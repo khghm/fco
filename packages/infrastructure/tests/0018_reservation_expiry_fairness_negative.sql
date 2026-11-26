@@ -75,6 +75,7 @@ declare
   v_run    record;
   v_job    record;
   v_fail_n integer;
+  v_fail_sum integer;
   v_idx    integer;
 begin
   b1 := inv.reserve(v_sales, 'd4000000-0000-0000-0000-000000000001', v_wh, v_b, 3, 30);
@@ -148,10 +149,13 @@ begin
     raise exception 'FAIL RETRYQ: %/%/% (انتظار ran/0/2)',
       v_run.outcome, v_run.expired, v_run.failed;
   end if;
-  select count(*) into v_fail_n from inv.reservation_expiry_failures
+  -- از 0020 هر رزرو یک ردیف دارد و شمار شکست جدا شمرده می‌شود.
+  select count(*), coalesce(sum(failures), 0) into v_fail_n, v_fail_sum
+    from inv.reservation_expiry_failures
    where reservation_id in (b1, b2) and error_sqlstate = '23514';
-  if v_fail_n <> 4 then
-    raise exception 'FAIL RETRYQ: برای دو رزرو خراب % ردیف 23514 ثبت شد (انتظار ۴)', v_fail_n;
+  if v_fail_n <> 2 or v_fail_sum <> 4 then
+    raise exception 'FAIL RETRYQ: % ردیف با % شکست ثبت شد (انتظار ۲ ردیف با ۴ شکست)',
+      v_fail_n, v_fail_sum;
   end if;
   raise notice 'PASS RETRYQ | در صف خالی، رزرو سابقه‌دار بازآزمون و شکستش دوباره ثبت شد';
 
@@ -166,9 +170,10 @@ begin
      or (select status from inv.reservations where id = b2) <> 'released' then
     raise exception 'FAIL HEAL: رزرو سابقه‌دار پس از رفع داده آزاد نشد';
   end if;
-  select count(*) into v_fail_n from inv.reservation_expiry_failures;
-  if v_fail_n <> 4 then
-    raise exception 'FAIL HEAL: تاریخ خطا تغییر کرد (% ردیف)', v_fail_n;
+  select count(*), coalesce(sum(failures), 0) into v_fail_n, v_fail_sum
+    from inv.reservation_expiry_failures;
+  if v_fail_n <> 2 or v_fail_sum <> 4 then
+    raise exception 'FAIL HEAL: تاریخ خطا تغییر کرد (% ردیف با % شکست)', v_fail_n, v_fail_sum;
   end if;
   raise notice 'PASS HEAL | پس از رفع داده هر دو رزرو سابقه‌دار آزاد شدند و تاریخ خطا ماند';
 
