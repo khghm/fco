@@ -1,8 +1,10 @@
 import Link from "next/link";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { getPublicProduct } from "@fco/application/catalog";
 import { createPostgresPublicCatalogRepository } from "@fco/infrastructure/catalog";
 import { formatPrice, persianNumber } from "../../../lib/catalog-presentation";
+import { addPublicMediaUrls } from "../../../lib/public-media";
 
 export const dynamic = "force-dynamic";
 
@@ -12,13 +14,14 @@ type ProductPageProps = {
 
 export default async function ProductPage({ params }: ProductPageProps) {
   const { slug } = await params;
-  const product = await getPublicProduct(
+  const productRecord = await getPublicProduct(
     createPostgresPublicCatalogRepository(),
     slug,
   );
-  if (product === null) {
+  if (productRecord === null) {
     notFound();
   }
+  const product = await addPublicMediaUrls(productRecord);
 
   return (
     <main className="storefront">
@@ -31,17 +34,24 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
       <article className="product-page">
         <div className="product-gallery">
-          <div
-            className="product-art product-art-large"
-            role="img"
-            aria-label={product.media[0]?.alt ?? `تصویر ${product.title}`}
-          >
-            <span>
-              {product.media.length > 0
-                ? `${persianNumber.format(product.media.length)} تصویر ثبت شده`
-                : "تصویر محصول"}
-            </span>
-          </div>
+          {product.media.length > 0 ? (
+            product.media.map((media, index) => (
+              <Image
+                key={media.key}
+                className="product-image"
+                src={media.url}
+                alt={media.alt ?? product.title}
+                width={720}
+                height={960}
+                sizes="(max-width: 720px) 100vw, 50vw"
+                priority={index === 0}
+              />
+            ))
+          ) : (
+            <div className="product-art product-art-large" role="img" aria-label={`تصویر ${product.title}`}>
+              <span>تصویر محصول</span>
+            </div>
+          )}
         </div>
 
         <div className="product-summary">

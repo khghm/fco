@@ -58,7 +58,6 @@ describe.skipIf(!databaseUrl)("GET /api/v1/products with PostgreSQL", () => {
     expect(body.data).toMatchObject({
       slug: "e2e-shirt",
       description: "محصول نمونه برای آزمون endpoint",
-      media: [{ key: "catalog/e2e-shirt/front.jpg", alt: "نمای جلو" }],
       variants: [
         {
           sku: "E2E-SHIRT-001",
@@ -68,6 +67,12 @@ describe.skipIf(!databaseUrl)("GET /api/v1/products with PostgreSQL", () => {
         },
       ],
     });
+    expect(body.data.media).toHaveLength(1);
+    expect(body.data.media[0]).toMatchObject({
+      key: "catalog/e2e-shirt/front.png",
+      alt: "نمای جلو",
+    });
+    expect(new URL(body.data.media[0].url).searchParams.get("X-Amz-Expires")).toBe("900");
   });
 
   it("does not expose missing or unpublished products", async () => {

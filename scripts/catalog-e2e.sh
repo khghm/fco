@@ -52,6 +52,25 @@ export DATABASE_URL="$(
 )"
 export DATABASE_SSL="${DATABASE_SSL:-false}"
 export FCO_E2E_DATABASE_URL="$DATABASE_URL"
+export REDIS_URL="${FCO_E2E_REDIS_URL:-redis://127.0.0.1:6379}"
+S3_PORT="${FCO_E2E_S3_PORT:-$(
+  node -e '
+    const server = require("node:net").createServer();
+    server.listen(0, "127.0.0.1", () => {
+      process.stdout.write(String(server.address().port));
+      server.close();
+    });
+  '
+)}"
+[[ "$S3_PORT" =~ ^[0-9]+$ ]] || die "انتخاب پورت S3 E2E ناموفق بود"
+export S3_E2E_PORT="$S3_PORT"
+export S3_ENDPOINT="http://127.0.0.1:$S3_PORT"
+export S3_BUCKET="${FCO_E2E_S3_BUCKET:-fco-catalog-e2e}"
+export S3_REGION="${FCO_E2E_S3_REGION:-us-east-1}"
+export S3_ACCESS_KEY=S3RVER
+export S3_SECRET_KEY=S3RVER
+export CATALOG_RATE_LIMIT_POINTS=20
+export TRUST_PROXY=false
 
 printf 'E2E database: %s\n' "$DB_NAME"
 bash "$ROOT/scripts/db-migrate.sh" up
@@ -80,7 +99,9 @@ PORT="${FCO_E2E_PORT:-$(
 [[ "$PORT" =~ ^[0-9]+$ ]] || die "انتخاب پورت E2E ناموفق بود"
 
 SERVER_LOG="$(mktemp)"
+S3_LOG="$(mktemp)"
 SERVER_PID=""
+S3_PID=""
 cleanup() {
   local status=$?
   trap - EXIT
@@ -88,18 +109,39 @@ cleanup() {
     kill "$SERVER_PID" 2>/dev/null || true
     wait "$SERVER_PID" 2>/dev/null || true
   fi
+  if [[ -n "$S3_PID" ]]; then
+    kill "$S3_PID" 2>/dev/null || true
+    wait "$S3_PID" 2>/dev/null || true
+  fi
   if [[ "$status" -ne 0 ]]; then
     cat "$SERVER_LOG" >&2
+    cat "$S3_LOG" >&2
   fi
-  rm -f "$SERVER_LOG"
+  rm -f "$SERVER_LOG" "$S3_LOG"
   exit "$status"
 }
 trap cleanup EXIT
 
+node "$ROOT/scripts/catalog-s3-e2e-server.mjs" >"$S3_LOG" 2>&1 &
+S3_PID=$!
+for _ in $(seq 1 50); do
+  if node -e '
+    const socket = require("node:net").connect(Number(process.env.S3_E2E_PORT), "127.0.0.1");
+    socket.on("connect", () => { socket.end(); process.exit(0); });
+    socket.on("error", () => process.exit(1));
+  '; then
+    break
+  fi
+  sleep 0.2
+done
+kill -0 "$S3_PID" 2>/dev/null || die "S3 E2E server did not start"
+node "$ROOT/scripts/catalog-media-e2e-setup.mjs"
+
 (
   cd "$ROOT/apps/shop"
-  exec node "$ROOT/node_modules/next/dist/bin/next" start \
-    --hostname 127.0.0.1 --port "$PORT"
+  export FCO_HOST=127.0.0.1
+  export PORT
+  exec node server.mjs --prod
 ) >"$SERVER_LOG" 2>&1 &
 SERVER_PID=$!
 export FCO_E2E_BASE_URL="http://127.0.0.1:$PORT"

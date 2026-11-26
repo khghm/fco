@@ -283,6 +283,22 @@ a {
   border-radius: 16px;
 }
 
+.product-gallery {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+}
+
+.product-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 720px;
+  border-radius: 16px;
+  object-fit: contain;
+  background: var(--surface);
+}
+
 .product-summary h1 {
   margin: 12px 0 16px;
   font-size: clamp(1.8rem, 4vw, 2.8rem);

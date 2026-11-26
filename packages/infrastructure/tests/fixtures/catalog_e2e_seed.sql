@@ -25,7 +25,7 @@ insert into cat.product_media
 values
   ('f4000000-0000-0000-0000-000000000001',
    'a4000000-0000-0000-0000-000000000001',
-   'catalog/e2e-shirt/front.jpg', 'نمای جلو', 1);
+   'catalog/e2e-shirt/front.png', 'نمای جلو', 1);
 
 insert into pricing.prices
   (variant_id, channel, amount_rial, compare_at_rial, effective_from)

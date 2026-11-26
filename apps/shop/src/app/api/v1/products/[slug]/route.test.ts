@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getProductBySlug } = vi.hoisted(() => ({
+const { getProductBySlug, createPresignedMediaUrl } = vi.hoisted(() => ({
   getProductBySlug: vi.fn(),
+  createPresignedMediaUrl: vi.fn(),
 }));
 
 vi.mock("@fco/infrastructure/catalog", () => ({
   createPostgresPublicCatalogRepository: () => ({ getProductBySlug }),
 }));
+vi.mock("@fco/infrastructure/media", () => ({ createPresignedMediaUrl }));
 
 import { GET } from "./route";
 
@@ -21,10 +23,19 @@ function context(slug: string) {
 describe("GET /api/v1/products/{slug}", () => {
   beforeEach(() => {
     getProductBySlug.mockReset();
+    createPresignedMediaUrl.mockReset();
+    createPresignedMediaUrl.mockImplementation(
+      async (key: string) => `https://media.example/${key}?X-Amz-Expires=900`,
+    );
   });
 
   it("returns product details and preserves a valid request ID", async () => {
-    const product = { slug: "e2e-shirt", title: "پیراهن آزمایشی", variants: [] };
+    const product = {
+      slug: "e2e-shirt",
+      title: "پیراهن آزمایشی",
+      media: [{ key: "catalog/e2e-shirt/front.jpg", alt: "نمای جلو" }],
+      variants: [],
+    };
     getProductBySlug.mockResolvedValue(product);
 
     const response = await GET(
@@ -34,11 +45,17 @@ describe("GET /api/v1/products/{slug}", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("x-request-id")).toBe("product-test-123");
-    await expect(response.json()).resolves.toEqual({
-      data: product,
-      meta: { request_id: "product-test-123" },
-    });
+    const body = await response.json();
+    expect(body.meta).toEqual({ request_id: "product-test-123" });
+    expect(body.data.media).toEqual([
+      {
+        key: "catalog/e2e-shirt/front.jpg",
+        alt: "نمای جلو",
+        url: "https://media.example/catalog/e2e-shirt/front.jpg?X-Amz-Expires=900",
+      },
+    ]);
     expect(getProductBySlug).toHaveBeenCalledWith("e2e-shirt");
+    expect(createPresignedMediaUrl).toHaveBeenCalledWith("catalog/e2e-shirt/front.jpg");
   });
 
   it("rejects malformed slugs without querying PostgreSQL", async () => {

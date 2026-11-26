@@ -62,7 +62,7 @@ docs/          مستندات (منبع حقیقت دانش پروژه)
 - برای اجرای فروشگاه، `.env.example` را به `apps/shop/.env.local` کپی کنید؛ مقادیر محلی را با محیط خود تنظیم کنید.
 
 ```bash
-# راه‌اندازی سرویس‌های محلی
+# راه‌اندازی سرویس‌های محلی (PostgreSQL و Redis)
 docker compose -f infra/compose/docker-compose.yml up -d
 
 # بررسی سلامت
@@ -71,7 +71,7 @@ docker compose -f infra/compose/docker-compose.yml ps
 
 ## وضعیت اتصال کاتالوگ
 
-آزمون بازتولیدپذیر در [`catalog-e2e.sh`](scripts/catalog-e2e.sh) دیتابیس تازه‌ای با نام یکتای تولیدشده می‌سازد، ۱۹ Migration را اعمال می‌کند، [`catalog_e2e_seed.sql`](packages/infrastructure/tests/fixtures/catalog_e2e_seed.sql) را اجرا می‌کند، lint/typecheck/test/build را می‌سنجد و سپس سرور production را روی loopback با پورت آزاد بالا می‌آورد. آزمون HTTP مسیر فهرست، جزئیات محصول، ورودی نامعتبر و محصول منتشرنشده را پوشش می‌دهد. اسکریپت هیچ دیتابیسی را حذف یا بازنویسی نمی‌کند؛ نام دیتابیس را چاپ می‌کند و آن را برای بررسی نگه می‌دارد.
+آزمون بازتولیدپذیر در [`catalog-e2e.sh`](scripts/catalog-e2e.sh) دیتابیس تازه‌ای با نام یکتای تولیدشده می‌سازد، ۱۹ Migration را اعمال می‌کند، [`catalog_e2e_seed.sql`](packages/infrastructure/tests/fixtures/catalog_e2e_seed.sql) را اجرا می‌کند، lint/typecheck/test/build را می‌سنجد و سرور production را روی loopback با پورت آزاد بالا می‌آورد. Redis باید در دسترس باشد؛ S3rver با bucket و تصویر fixture موقت توسط آزمون اجرا می‌شود. هیچ دیتابیس یا دادهٔ موجودی حذف/بازنویسی نمی‌شود و دیتابیس E2E برای بررسی نگه داشته می‌شود.
 
 از ریشهٔ مخزن (با Git Bash در ویندوز) اجرا کنید:
 
@@ -80,17 +80,23 @@ DATABASE_URL=postgresql://fco:fco_local_dev_only@localhost:5432/fco \
   bash scripts/catalog-e2e.sh
 ```
 
-job مستقل `Storefront catalog HTTP E2E` در [ci.yml](.github/workflows/ci.yml) با PostgreSQL 16 در GitHub Actions اجرا شد. هر دو job (`ci` و `Storefront catalog HTTP E2E`) برای commit جزئیات محصول `13b4f47` سبز شدند ([اجرای #3](https://github.com/khghm/fco/actions/runs/45834805163)). اجرای محلی در دیتابیسِ خودکارنام‌گذاری‌شدهٔ `fco_catalog_e2e_20261126135659_1834` نیز ۱۹ Migration، ۲۰ تست، lint، typecheck و build هر دو اپ را گذراند؛ هیچ آزمون یا seedای به نام دیتابیس وابسته نیست:
+job مستقل `Storefront catalog HTTP E2E` در [ci.yml](.github/workflows/ci.yml) برای نسخه‌های قبلی روی GitHub Actions اجرا شده است؛ تغییر رسانه و rate limit در این برش هنوز باید در CI تأیید شود. اجرای محلیِ این برش روی دیتابیس خودکارنام‌گذاری‌شدهٔ `fco_catalog_e2e_20261126143850_1796`، ۱۹ Migration، ۲۴ تست، lint، typecheck و build هر دو اپ را گذراند؛ آزمون HTTP موارد زیر را تأیید کرد:
 
 ```text
 GET /api/v1/products?q=FCO
 200 | slug=e2e-shirt | price_rial=650000 | available_qty=4 | in_stock=true
 
 GET /api/v1/products/e2e-shirt
-200 | media=1 | variants=1
+200 | signed media URL TTL=900s | variants=1
+
+GET <presigned media URL>
+200 | image/png
+
+GET /_next/image
+200 | optimized image
 
 GET /products/e2e-shirt
-200 | title and variant rendered
+200 | image, title and variant rendered
 
 GET /api/v1/products?page_size=61
 400 | code=FCO-1001
@@ -100,9 +106,12 @@ GET /api/v1/products/not-a-published-product
 
 GET /products/not-a-published-product
 404
+
+GET /api/v1/products?q=FCO (request 21, E2E limit=20/min)
+429 | code=FCO-1007 | Retry-After present
 ```
 
-در چهار پاسخ API، `request_id` در body و header برابر است. دیتابیس توسعهٔ `fco` تغییر نمی‌کند. نمایش فایل تصویر از S3/MinIO هنوز پیاده نشده است؛ قرارداد و سایر محدودیت‌ها در `docs/Architecture-02/API_SPECIFICATION.md` آمده‌اند.
+در پاسخ‌های API، `request_id` در body و header برابر است؛ هدرهای IP جعلی نیز در `TRUST_PROXY=false` سهمیه را دور نمی‌زنند. E2E از شبیه‌ساز S3rver استفاده می‌کند؛ اتصال به MinIO واقعی/Production هنوز جداگانه باید آزموده شود. دیتابیس توسعهٔ `fco` تغییر نمی‌کند. پنل مدیریت و خرید هنوز پیاده نشده‌اند؛ وضعیت کامل در `docs/Architecture-02/API_SPECIFICATION.md` آمده است.
 
 ## قواعد غیرقابل‌مذاکره
 

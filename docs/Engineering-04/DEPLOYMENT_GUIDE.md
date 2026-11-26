@@ -48,6 +48,11 @@ Internet ──443──> Reverse Proxy (TLS, HSTS, rate limit, static cache)
                      Backup (محلی + offsite رمزگذاری‌شده)
 ```
 - Proxy تنها نقطه ورودی؛ App و DB روی پورت عمومی گوش نمی‌دهند.
+- فروشگاه باید با سرور سفارشی Node و از مسیر `npm run start --workspace @fco/shop` اجرا شود؛ این سرور IP سوکت را برای rate limiter فراهم می‌کند. از `next start` مستقیم استفاده نکنید.
+- `TRUST_PROXY=true` فقط وقتی مجاز است که proxy ورودی `X-Real-IP` و `X-Forwarded-For` را حذف و با مقدار معتبر بازنویسی کند. در غیر این صورت `false` بماند؛ هدرهای ارسالی کلاینت در این حالت نادیده گرفته می‌شوند.
+- سقف عمومی کاتالوگ به‌طور پیش‌فرض ۱۰۰ درخواست/IP/دقیقه است؛ در قطعی Redis، شمارش حافظه‌ای فقط همان نمونه را پوشش می‌دهد و باید هشدار عملیاتی ثبت شود.
+- `S3_ENDPOINT` یک تنظیم مورداعتماد سرور است و تنها host/path مجاز برای `next/image` را تعیین می‌کند؛ چون MinIO ممکن است در شبکه خصوصی باشد، به optimizer اجازهٔ اتصال به IP خصوصی داده شده است. این endpoint را از ورودی کاربر نسازید یا تغییر ندهید.
+- `S3_ENDPOINT`، `S3_BUCKET` و `S3_REGION` باید هنگام build فروشگاه هم تنظیم باشند تا allowlist تصاویر در پیکربندی Next.js ثبت شود.
 - Worker بدون HTTP عمومی اجرا می‌شود؛ سلامت آن با heartbeat در `job_runs`.
 - هیچ Cache در مسیر داده مالی/موجودی به‌عنوان منبع حقیقت استفاده نمی‌شود.
 
@@ -57,11 +62,12 @@ Internet ──443──> Reverse Proxy (TLS, HSTS, rate limit, static cache)
 
 | گروه | متغیرها |
 |---|---|
-| اپ | `NODE_ENV`, `APP_URL`, `APP_TIMEZONE=Asia/Tehran`, `PORT` |
+| اپ | `NODE_ENV`, `APP_URL`, `APP_TIMEZONE=Asia/Tehran`, `PORT`, `FCO_HOST` |
 | DB | `DATABASE_URL`, `DATABASE_POOL_MAX` |
-| Redis | `REDIS_URL` |
+| Redis | `REDIS_URL`, `CATALOG_RATE_LIMIT_POINTS` |
+| پروکسی | `TRUST_PROXY` |
 | نشست | `SESSION_SECRET`, `SESSION_TTL_MINUTES` |
-| Storage (فاز ۲) | `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` |
+| Storage (فاز ۲) | `S3_ENDPOINT`, `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` |
 | درگاه | `PAYMENT_PROVIDER`, `PAYMENT_BASE_URL`, `PAYMENT_MERCHANT_ID`, `PAYMENT_CALLBACK_SECRET` |
 | حمل | `CARRIER_PROVIDER`, `CARRIER_API_KEY`, `CARRIER_WEBHOOK_SECRET` |
 | پیامک | `SMS_PROVIDER`, `SMS_API_KEY`, `SMS_SENDER` |
@@ -94,7 +100,7 @@ npm run build
 npm run db:migrate
 
 # ۶) راه‌اندازی سرویس‌ها (systemd/pm2/containers بر اساس تصمیم استقرار)
-npm run start:app
+npm run start --workspace @fco/shop
 npm run start:worker
 
 # ۷) بررسی سلامت

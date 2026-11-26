@@ -115,5 +115,9 @@ jobs:
       - name: Install Node workspaces
         run: npm ci
 
-      - name: Migrate, seed, build and verify storefront HTTP API
+      - name: Start Redis for E2E
+        run: |
+          docker run -d --name fco-e2e-redis -p 6379:6379 redis:7-alpine
+
+      - name: Migrate, seed, build and verify storefront HTTP, media and rate limit
         run: bash scripts/catalog-e2e.sh

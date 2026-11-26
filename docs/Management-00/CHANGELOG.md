@@ -13,6 +13,7 @@
 - npm workspaces برای `apps/shop`، `apps/admin`، `packages/application` و `packages/infrastructure`؛ scaffold دو اپ Next.js با TypeScript strict.
 - نخستین برش کاتالوگ عمومی: صفحهٔ فارسی/RTL، `GET /api/v1/products`، اعتبارسنجی query و repository فقط‌خواندنی PostgreSQL با نقش `fco_app`.
 - صفحهٔ جزئیات فارسی و `GET /api/v1/products/{slug}` با قیمت/موجودی تنوع‌های فعال و metadata رسانه؛ لینک از کارت‌های کاتالوگ و آزمون HTTP واقعی برای موفقیت، slug نامعتبر و محصول منتشرنشده.
+- URL امضاشدهٔ ۱۵ دقیقه‌ای برای رسانهٔ محصول، نمایش تصویر با `next/image`، rate limit عمومی Redis با fallback حافظه‌ای، و آزمون HTTP رسانه/429.
 - آزمون‌های قرارداد API برای پاسخ موفق، ورودی نامعتبر و دسترس‌ناپذیری PostgreSQL.
 - اسکریپت `scripts/catalog-e2e.sh`، seed ثابت و آزمون HTTP مبتنی بر Node؛ job مستقل CI دیتابیس جدا می‌سازد و مسیر migration تا پاسخ API را اجرا می‌کند.
 
@@ -20,15 +21,16 @@
 - وضعیت README و Project Master Control با پیشرفت BR-1/BR-2 هم‌راستا شد؛ قرارداد واقعی endpoint در `API_SPECIFICATION.md` ثبت شد و READMEهای scaffold با راهنمای مخزن جایگزین شدند.
 
 ### Verified
+- E2E کاتالوگ با PostgreSQL، Redis و S3rver: ۱۹ Migration، ۲۴ تست، lint/typecheck/build؛ HTTP واقعی برای Presigned GET با TTL=900، دریافت PNG، `next/image`، صفحهٔ جزئیات، 400/404، نادیده‌گرفتن هدر IP جعلی و درخواست ۲۱م از سقف ۲۰/min با `429/FCO-1007` و `Retry-After` سبز شد. این شاهد محلی است؛ تأیید CI و MinIO واقعی باز است.
 - اجرای `scripts/catalog-e2e.sh` از ابتدا تا انتها روی Windows/Git Bash پس از افزودن جزئیات محصول: دیتابیس تازه، Migrationهای `0001..0019`، ۲۰ آزمون، lint/typecheck/build هر دو اپ، HTTP فهرست و جزئیات `200`، صفحهٔ محصول `200`، ورودی نامعتبر `400 / FCO-1001` و محصول منتشرنشده `404 / FCO-1004`. `request_id` در چهار پاسخ API با header/body برابر بود.
 - CI job مستقل `catalog-e2e` به همان اسکریپت وصل شد؛ اسکریپت دیتابیس موجود را حذف/بازنویسی نمی‌کند و در CI دیتابیس در سرویس موقت PostgreSQL می‌ماند.
 - هر دو job (`ci` و `Storefront catalog HTTP E2E`) برای برش جزئیات محصول در GitHub Actions #3 روی commit `13b4f47` موفق شدند: [نتیجهٔ اجرا](https://github.com/khghm/fco/actions/runs/45834805163).
 
 ### Limitation
-- دیتابیس توسعهٔ `fco` هنوز Migrationهای کاتالوگ را ندارد؛ E2E روی دیتابیس جداست. URL و تحویل فایل‌های رسانه از S3/MinIO، نرخ‌محدودسازی و عملیات مدیریت همچنان بازند.
+- دیتابیس توسعهٔ `fco` هنوز Migrationهای کاتالوگ را ندارد؛ E2E روی دیتابیس و bucket جداست. پنل مدیریت و سایر endpointهای BR-2 همچنان بازند.
 
 ### Planned
-- ادامهٔ BR-2: URL/تحویل رسانه، صفحهٔ دسته، پنل محصول/قیمت و نرخ‌محدودسازی؛ سپس BR-3 تا BR-5 طبق گیت‌های پذیرش.
+- ادامهٔ BR-2: تأیید MinIO واقعی، صفحهٔ دسته و پنل محصول/قیمت؛ سپس BR-3 تا BR-5 طبق گیت‌های پذیرش.
 
 ---
 

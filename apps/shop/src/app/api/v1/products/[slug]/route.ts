@@ -6,6 +6,7 @@ import {
   logApiFailure,
   requestIdFrom,
 } from "../../http";
+import { addPublicMediaUrls } from "../../../../../lib/public-media";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,8 +32,9 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
       return apiErrorResponse(404, "FCO-1004", "محصول یافت نشد.", requestId);
     }
 
+    const productWithMediaUrls = await addPublicMediaUrls(product);
     return Response.json(
-      { data: product, meta: { request_id: requestId } },
+      { data: productWithMediaUrls, meta: { request_id: requestId } },
       { headers: { "X-Request-Id": requestId } },
     );
   } catch (error) {
