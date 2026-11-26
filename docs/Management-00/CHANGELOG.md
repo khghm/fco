@@ -1,6 +1,6 @@
 # تغییرات (CHANGELOG)
 
-> **وضعیت:** زنده · **نسخه:** v1.19 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۵
+> **وضعیت:** زنده · **نسخه:** v1.20 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۵
 > قالب بر پایه Keep a Changelog، تاریخ‌ها شمسی + ISO. هر تغییر در **رفتار، دامنه یا ساختار اسناد** یک ردیف اینجا دارد.
 > شاهد هر نسخه: `git show --stat <commit>`.
 > **مالک تاریخ تغییرات اسناد و مخزن.**
@@ -13,6 +13,23 @@
 - BR-2 گام ۵ به بعد: رندر صفحات عمومی پس از اسکلت اپ (D-05) و پنل محصول/قیمت
 
 ---
+
+## [0.20.4] — ۱۴۰۵/۰۹/۰۵ (2026-11-26)
+
+### Fixed (بازبینی پنجم: زمان شکست و دیده‌شدن شکست‌های مکرر)
+- **`first_failed_at` حالا واقعاً «نخستین» است:** در 0020 زمان شکست با `now()` نوشته می‌شد که ابتدای تراکنش است؛ سه slot پیوسته یک لحظه می‌گرفتند و بررسی «تاریخ نخستین شکست حفظ شد» در سوئیت 0020 تشریفاتی بود (فقط `<=` سنجیده می‌شد). `0021_reservation_expiry_failure_visibility` زمان واقعی را با `clock_timestamp()` می‌نویسد و `first_failed_at` را در `on conflict` بازنویسی نمی‌کند؛ سوئیت 0020 حالا نخستین را پس از شکست بیست‌وهشتم دست‌نخورده و `occurred_at` را اکیداً صعودی می‌سنجد.
+- **شکست‌های مکرر انقضا دیده می‌شوند:** `sys.health_report` بخش `reservations` گرفت — `expiry_failures` (شمار رزروهای شکست‌خورده)، `expiry_failures_open` (از آن‌ها که هنوز `active`اند و موجودی رزروشده را قفل نگه داشته‌اند)، `max_failures`، `oldest_first_failed_at` و `top_failures` (۱۰ رزرو بدتر با `failures`، تاریخ نخستین/آخرین شکست، `sqlstate`، `status` و انبار/تنوع). مجوز همان `platform.health.read` است.
+
+### Added
+- Migration `0021_reservation_expiry_failure_visibility` (+`.down.sql` که تعریف 0020 و `health_report` 0010 را عیناً برمی‌گرداند) و سوئیت `0021_reservation_expiry_failure_visibility_negative`: `PASS TIME`/`PASS HEALTH`/`PASS PERM`.
+
+### Verified
+- `CI PASS | lint · typecheck · test · migration · build` · `PASS 21 Migration` · `PASS 15 مجموعه آزمون سبز` · `build_fingerprint = bundle_fingerprint = 33|57|21|6c484cd5426d87060cbefdbb5f4c53c4` (exit 0).
+- سوئیت 0021: `PASS TIME` (سه slot ⇒ نخستین شکست ثابت، آخرین شکست اکیداً جلو، `failures=3`)، `PASS HEALTH` (رزرو خراب با `failures=3`/`status=active`/`23514` در `top_failures`؛ رزرو سالم نیامد؛ فهرست مرتب) و `PASS PERM` (`FCO-1003`).
+- سوئیت‌های `0010` (که `health_report` را می‌سنجد)، `0017`، `0018` و `0020` روی 0021 سبز ماندند.
+- قرمز عمدی A: بازگرداندن `now()` (بدنه 0020) ⇒ `FAIL SINGLE: نخستین و آخرین شکست از هم تفکیک نشدند (...)` (exit 3).
+- قرمز عمدی B: افزودن `first_failed_at = v_failed_at` به `on conflict` ⇒ `FAIL TIME: تاریخ نخستین شکست در دور 2 بازنویسی شد` (exit 3).
+- قرمز عمدی C: حذف بخش `reservations` از `health_report` ⇒ `FAIL HEALTH: بخش reservations در گزارش نیست` (exit 3)، سپس بازگرداندن سبز.
 
 ## [0.20.3] — ۱۴۰۵/۰۹/۰۵ (2026-11-26)
 

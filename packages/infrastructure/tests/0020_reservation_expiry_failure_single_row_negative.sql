@@ -76,6 +76,8 @@ declare
   v_fl       bigint;
   v_first_at timestamptz;
   v_last_at  timestamptz;
+  v_first_saved    timestamptz;
+  v_occurred_saved timestamptz;
   v_run      record;
   v_last_run bigint;
   r_broken   uuid;
@@ -139,10 +141,16 @@ begin
   if v_fl <> v_last_run then
     raise exception 'FAIL SINGLE: run_id=% (انتظار آخرین دور %)', v_fl, v_last_run;
   end if;
-  if v_first_at is null or v_last_at is null or v_first_at > v_last_at then
-    raise exception 'FAIL SINGLE: بازه تاریخ شکست معتبر نیست (first=% last=%)', v_first_at, v_last_at;
+  -- از 0021 زمان‌ها با clock_timestamp نوشته می‌شوند، پس ۲۷ شکست یک دسته
+  -- دیگر یک لحظه نیستند: نخستین باید اکیداً پیش از آخرین باشد.
+  if v_first_at is null or v_last_at is null or v_first_at >= v_last_at then
+    raise exception 'FAIL SINGLE: نخستین و آخرین شکست از هم تفکیک نشدند (first=% last=%)',
+      v_first_at, v_last_at;
   end if;
-  raise notice 'PASS SINGLE | ۲۷ slot ⇒ ۱ ردیف، failures=27 و run_id آخرین دور؛ رشد جدول به slot وابسته نیست';
+  v_first_saved := v_first_at;
+  v_occurred_saved := v_last_at;
+  raise notice 'PASS SINGLE | ۲۷ slot ⇒ ۱ ردیف با failures=27؛ نخستین شکست % و آخرین شکست % دو لحظه جدا هستند',
+    v_first_saved, v_occurred_saved;
 
   -- ۴) ------------------------------------- دامنه: ردیف رزرو دیگر دست‌نخورده
   r_other := inv.reserve(v_sales, 'd6000000-0000-0000-0000-000000000002', v_wh, v_a, 2, 600);
@@ -161,11 +169,19 @@ begin
   if v_cnt <> 9 or v_first_at <> v_last_at then
     raise exception 'FAIL SCOPE: ردیف رزرو دیگر تغییر کرد (failures=% occurred_at=%)', v_cnt, v_first_at;
   end if;
-  select failures into v_cnt from inv.reservation_expiry_failures where reservation_id = r_broken;
+  select failures, first_failed_at, occurred_at into v_cnt, v_first_at, v_last_at
+    from inv.reservation_expiry_failures where reservation_id = r_broken;
   if v_cnt <> 28 then
     raise exception 'FAIL SCOPE: شمارنده رزرو خراب % است (انتظار ۲۸)', v_cnt;
   end if;
-  raise notice 'PASS SCOPE | شکست یک رزرو، ردیف و شمارنده رزرو دیگر را لمس نمی‌کند';
+  -- «نگهداشتن تاریخ نخستین»: شکست تازه نباید first_failed_at را بازنویسی کند.
+  if v_first_at <> v_first_saved then
+    raise exception 'FAIL SCOPE: تاریخ نخستین شکست بازنویسی شد (% ⇒ %)', v_first_saved, v_first_at;
+  end if;
+  if v_last_at <= v_occurred_saved then
+    raise exception 'FAIL SCOPE: زمان آخرین شکست جلو نرفت (% ⇒ %)', v_occurred_saved, v_last_at;
+  end if;
+  raise notice 'PASS SCOPE | شکست تازه first_failed_at را دست نزد، occurred_at جلو رفت و ردیف رزرو دیگر لمس نشد';
 
   -- ۵) ------------------------------- اولویت صف 0018 با یک ردیف هم برقرار است
   r_healthy := inv.reserve(v_sales, 'd6000000-0000-0000-0000-000000000003', v_wh, v_a, 1, 600);
