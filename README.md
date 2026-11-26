@@ -80,7 +80,7 @@ DATABASE_URL=postgresql://fco:fco_local_dev_only@localhost:5432/fco \
   bash scripts/catalog-e2e.sh
 ```
 
-برای GitHub Actions، job مستقل `Storefront catalog HTTP E2E` در [ci.yml](.github/workflows/ci.yml) تعریف شده تا همین اسکریپت را با PostgreSQL 16 اجرا کند؛ اجرای واقعی job هنوز معوق است: مخزن remote ندارد و ابزار محلی `act` نیز نصب نیست. **وضعیت فعلی: E2E محلی سبز؛ GitHub Actions هنوز اجرا نشده است.** اجرای محلی موفق در دیتابیسِ خودکارنام‌گذاری‌شدهٔ `fco_catalog_e2e_20261126131901_1641` همهٔ ۱۹ Migration، ۱۳ تست، lint، typecheck و build هر دو اپ را گذراند؛ هیچ آزمون یا seedای به این نام وابسته نیست:
+job مستقل `Storefront catalog HTTP E2E` در [ci.yml](.github/workflows/ci.yml) با PostgreSQL 16 در GitHub Actions اجرا شد. **وضعیت: E2E محلی سبز؛ هر دو job یعنی `ci` و `Storefront catalog HTTP E2E` در اجرای [GitHub Actions #1](https://github.com/khghm/fco/actions/runs/45830968091) برای commit `d9c4e41` سبز شدند.** اجرای محلی موفق در دیتابیسِ خودکارنام‌گذاری‌شدهٔ `fco_catalog_e2e_20261126131901_1641` همهٔ ۱۹ Migration، ۱۳ تست، lint، typecheck و build هر دو اپ را گذراند؛ هیچ آزمون یا seedای به این نام وابسته نیست:
 
 ```text
 GET /api/v1/products?q=FCO
