@@ -21,7 +21,7 @@
 - وضعیت README و Project Master Control با پیشرفت BR-1/BR-2 هم‌راستا شد؛ قرارداد واقعی endpoint در `API_SPECIFICATION.md` ثبت شد و READMEهای scaffold با راهنمای مخزن جایگزین شدند.
 
 ### Verified
-- E2E کاتالوگ با PostgreSQL، Redis و S3rver: ۱۹ Migration، ۲۴ تست، lint/typecheck/build؛ HTTP واقعی برای Presigned GET با TTL=900، دریافت PNG، `next/image`، صفحهٔ جزئیات، 400/404، نادیده‌گرفتن هدر IP جعلی و درخواست ۲۱م از سقف ۲۰/min با `429/FCO-1007` و `Retry-After` سبز شد. این شاهد محلی است؛ تأیید CI و MinIO واقعی باز است.
+- E2E کاتالوگ با PostgreSQL، Redis و S3rver: ۱۹ Migration، ۲۴ تست، lint/typecheck/build؛ HTTP واقعی برای Presigned GET با TTL=900، دریافت PNG، `next/image`، صفحهٔ جزئیات، 400/404، نادیده‌گرفتن هدر IP جعلی و درخواست ۲۱م از سقف ۲۰/min با `429/FCO-1007` و `Retry-After` سبز شد. هر دو job (`ci` و `Storefront catalog HTTP E2E`) روی GitHub Actions #5 برای commit `27ee1fa` نیز موفق شدند: [نتیجهٔ اجرا](https://github.com/khghm/fco/actions/runs/45842656947). اتصال به MinIO واقعی هنوز تأیید نشده است.
 - اجرای `scripts/catalog-e2e.sh` از ابتدا تا انتها روی Windows/Git Bash پس از افزودن جزئیات محصول: دیتابیس تازه، Migrationهای `0001..0019`، ۲۰ آزمون، lint/typecheck/build هر دو اپ، HTTP فهرست و جزئیات `200`، صفحهٔ محصول `200`، ورودی نامعتبر `400 / FCO-1001` و محصول منتشرنشده `404 / FCO-1004`. `request_id` در چهار پاسخ API با header/body برابر بود.
 - CI job مستقل `catalog-e2e` به همان اسکریپت وصل شد؛ اسکریپت دیتابیس موجود را حذف/بازنویسی نمی‌کند و در CI دیتابیس در سرویس موقت PostgreSQL می‌ماند.
 - هر دو job (`ci` و `Storefront catalog HTTP E2E`) برای برش جزئیات محصول در GitHub Actions #3 روی commit `13b4f47` موفق شدند: [نتیجهٔ اجرا](https://github.com/khghm/fco/actions/runs/45834805163).
