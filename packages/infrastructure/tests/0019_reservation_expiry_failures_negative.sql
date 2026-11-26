@@ -16,6 +16,8 @@
 --      تفکیک نیست؛ `clock_timestamp()` و بازنویسی‌نشدن `first_failed_at` سنجیده می‌شود.
 --   ۴) دیده‌شدن: `sys.health_report` باید اعداد دقیق همین جدول را بدهد.
 --   ۵) اولویت صف 0018 باید با یک ردیف هم برقرار بماند و هرس/حذفی در کار نباشد.
+--   ۶) بازگشت داده: ردیف‌های per-slot قدیمی (وضعیت 0017) به یک ردیف جمع می‌شوند و
+--      هیچ پیش‌فرضی روی `failures`/`first_failed_at` نمی‌ماند.
 -- همه‌چیز در یک تراکنش است و با rollback پاک می‌شود.
 -- =============================================================================
 \set ON_ERROR_STOP on
@@ -91,6 +93,17 @@ declare
   v_row     jsonb;
   v_report  jsonb;
   v_run     record;
+  v_bf_rows integer;
+  v_bf_fail integer;
+  v_bf_run  bigint;
+  v_bf_1    bigint;
+  v_bf_2    bigint;
+  v_bf_3    bigint;
+  v_bf_sql  text;
+  v_bf_msg  text;
+  v_bf_from timestamptz;
+  v_bf_to   timestamptz;
+  r_legacy  uuid;
   r_broken  uuid;
   r_healed  uuid;
   r_other   uuid;
@@ -131,7 +144,105 @@ begin
   end if;
   raise notice 'PASS INDEX | ایندکس یکتای reservation_expiry_failures_reservation_uidx روی reservation_id است';
 
-  -- ۳) --------- یک رزرو شکست می‌خورد و رفع می‌شود (برای تفکیک open از کل)
+  -- ۳) ------- بازگشت داده: ردیف‌های per-slot قدیمی به یک ردیف جمع می‌شوند
+  -- وضعیت پیش از 0019 بازسازی می‌شود: ایندکس یکتا (همان قید «یک ردیف برای هر
+  -- رزرو») در همین تراکنش موقتاً برداشته می‌شود، برای یک رزرو سه ردیف per-slot
+  -- درج می‌شود و بعد همان دو گزاره‌ای اجرا می‌شود که Migration برای جمع‌کردن
+  -- دارد. اگر آن بلوک در Migration عوض شود، این گام هم باید عوض شود.
+  drop index inv.reservation_expiry_failures_reservation_uidx;
+
+  r_legacy := 'db000000-0000-0000-0000-000000000001';
+  insert into inv.reservations
+    (id, warehouse_id, variant_id, order_line_id, quantity, status, expires_at, created_at)
+  values (r_legacy, v_wh, v_a, gen_random_uuid(), 1, 'active',
+          now() - interval '5 minutes', now() - interval '10 minutes');
+
+  v_bf_1 := sys.job_begin('reservation_expiry', date_trunc('hour', now()) - interval '3 hours');
+  v_bf_2 := sys.job_begin('reservation_expiry', date_trunc('hour', now()) - interval '2 hours');
+  v_bf_3 := sys.job_begin('reservation_expiry', date_trunc('hour', now()) - interval '1 hour');
+  -- مقدار `failures`/`first_failed_at` دقیقاً همان است که `add column … default`
+  -- پیش از 0019 روی ردیف‌های قدیمی می‌گذاشت (یک و لحظه Migration)؛ جمع‌کردن باید
+  -- هر دو را با داده واقعی جایگزین کند.
+  insert into inv.reservation_expiry_failures
+    (run_id, reservation_id, error_sqlstate, message, failures, first_failed_at, occurred_at)
+  values (v_bf_1, r_legacy, '23514', 'قدیمی', 1, now(), now() - interval '3 hours'),
+         (v_bf_2, r_legacy, '23505', 'میانی', 1, now(), now() - interval '2 hours'),
+         (v_bf_3, r_legacy, 'XX000', 'جدید',  1, now(), now() - interval '1 hour');
+
+  update inv.reservation_expiry_failures f
+     set failures       = s.total,
+         first_failed_at = s.first_at
+    from (select reservation_id,
+                 count(*)::integer as total,
+                 min(occurred_at)  as first_at
+            from inv.reservation_expiry_failures
+           group by reservation_id) s
+   where f.reservation_id = s.reservation_id;
+
+  delete from inv.reservation_expiry_failures
+   where id in (
+     select ranked.id
+       from (select id,
+                    row_number() over (partition by reservation_id
+                                           order by occurred_at desc, id desc) as rn
+               from inv.reservation_expiry_failures) ranked
+      where ranked.rn > 1);
+
+  select count(*) into v_bf_rows
+    from inv.reservation_expiry_failures where reservation_id = r_legacy;
+  if v_bf_rows <> 1 then
+    raise exception 'FAIL BACKFILL: % ردیف برای یک رزرو ماند (انتظار ۱)', v_bf_rows;
+  end if;
+
+  select failures, error_sqlstate, message, run_id, first_failed_at, occurred_at
+    into v_bf_fail, v_bf_sql, v_bf_msg, v_bf_run, v_bf_from, v_bf_to
+    from inv.reservation_expiry_failures where reservation_id = r_legacy;
+  if v_bf_fail <> 3 then
+    raise exception 'FAIL BACKFILL: failures=% (انتظار ۳ ردیف قبلی)', v_bf_fail;
+  end if;
+  if v_bf_sql <> 'XX000' or v_bf_msg <> 'جدید' or v_bf_run <> v_bf_3 then
+    raise exception 'FAIL BACKFILL: ردیف جدیدترین نماند (sqlstate=% message=% run_id=%، انتظار %/جدید/%)',
+      v_bf_sql, v_bf_msg, v_bf_run, 'XX000', v_bf_3;
+  end if;
+  -- تاریخ‌ها از ردیف‌های seed می‌آیند، پس با بازه سنجیده می‌شوند (now() این جمله
+  -- با now() زمان درج یکی نیست).
+  if not (v_bf_from between now() - interval '3 hours 5 minutes'
+                        and now() - interval '3 hours' + interval '5 minutes') then
+    raise exception 'FAIL BACKFILL: نخستین شکست قدیمی‌ترین ردیف نیست (%)', v_bf_from;
+  end if;
+  if not (v_bf_to between now() - interval '1 hour 5 minutes'
+                      and now() - interval '1 hour' + interval '5 minutes') then
+    raise exception 'FAIL BACKFILL: آخرین شکست جدیدترین ردیف نیست (%)', v_bf_to;
+  end if;
+
+  create unique index reservation_expiry_failures_reservation_uidx
+    on inv.reservation_expiry_failures (reservation_id);
+  raise notice 'PASS BACKFILL | ۳ ردیف per-slot ⇒ ۱ ردیف با failures=3، پیام/run_id جدیدترین و first_failed_at قدیمی‌ترین';
+
+  -- ۴) --- پیش‌فرضی روی ستون‌ها نمانده: درج ناقص باید صریحاً بشکند
+  select count(*) into v_n
+    from information_schema.columns
+   where table_schema = 'inv' and table_name = 'reservation_expiry_failures'
+     and column_name in ('failures', 'first_failed_at')
+     and column_default is not null;
+  if v_n <> 0 then
+    raise exception 'FAIL DEFAULT: % ستون پیش‌فرض دارد (پیش‌فرض پیش از 0019 بازگشته است)', v_n;
+  end if;
+  begin
+    insert into inv.reservation_expiry_failures
+      (run_id, reservation_id, error_sqlstate, message)
+    values (v_bf_run, r_legacy, 'XX000', 'بدون ستون‌ها');
+    raise exception 'FAIL DEFAULT: درج بدون failures/first_failed_at پذیرفته شد';
+  exception when not_null_violation then
+    null;
+  end;
+  raise notice 'PASS DEFAULT | ستون‌ها پیش‌فرض ندارند و درج ناقص با not_null_violation رد می‌شود';
+
+  -- شاهد بازگشت داده پاک می‌شود تا شمارش‌های گام‌های بعدی دست‌نخورده بمانند.
+  delete from inv.reservation_expiry_failures where reservation_id = r_legacy;
+  delete from inv.reservations where id = r_legacy;
+
+  -- ۵) --------- یک رزرو شکست می‌خورد و رفع می‌شود (برای تفکیک open از کل)
   r_healed := inv.reserve(v_sales, 'd8000000-0000-0000-0000-000000000003', v_wh, v_a, 2, 30);
   update inv.reservations set created_at = now() - interval '40 minutes',
                               expires_at = now() - interval '20 minutes'
@@ -151,7 +262,7 @@ begin
       v_run.outcome, v_run.expired, v_run.failed;
   end if;
 
-  -- ۴) ------------------- ۲۷ slot پیوسته ⇒ یک ردیف با شمارنده ۲۷
+  -- ۶) ------------------- ۲۷ slot پیوسته ⇒ یک ردیف با شمارنده ۲۷
   r_broken := inv.reserve(v_sales, 'd8000000-0000-0000-0000-000000000001', v_wh, v_b, 3, 30);
   update inv.reservations set created_at = now() - interval '30 minutes',
                               expires_at = now() - interval '10 minutes'
@@ -209,7 +320,7 @@ begin
   raise notice 'PASS SINGLE | ۲۷ slot ⇒ ۱ ردیف با failures=27؛ نخستین شکست % و آخرین شکست % دو لحظه جدا هستند',
     v_first_saved, v_occurred_saved;
 
-  -- ۵) ----------------- دامنه: ردیف رزرو دیگر دست‌نخورده، هرسی در کار نیست
+  -- ۷) ----------------- دامنه: ردیف رزرو دیگر دست‌نخورده، هرسی در کار نیست
   r_other := inv.reserve(v_sales, 'd8000000-0000-0000-0000-000000000002', v_wh, v_a, 2, 600);
   insert into inv.reservation_expiry_failures
     (run_id, reservation_id, error_sqlstate, message, failures, first_failed_at, occurred_at)
@@ -241,7 +352,7 @@ begin
   v_last := v_last2;
   raise notice 'PASS SCOPE | شکست تازه first_failed_at را دست نزد، occurred_at جلو رفت و ردیف رزرو دیگر لمس نشد';
 
-  -- ۶) ------------------------------- اولویت صف 0018 با یک ردیف هم برقرار است
+  -- ۸) ------------------------------- اولویت صف 0018 با یک ردیف هم برقرار است
   r_healthy := inv.reserve(v_sales, 'd8000000-0000-0000-0000-000000000004', v_wh, v_a, 1, 600);
   update inv.reservations set created_at = now() - interval '30 minutes',
                               expires_at = now() - interval '5 minutes'
@@ -260,7 +371,7 @@ begin
   end if;
   raise notice 'PASS ORDER | رزرو سابقه‌دار آخر صف است و صف سالم همچنان اولویت دارد';
 
-  -- ۷) ------------------- گزارش رصد: اعداد دقیقاً از همین جدول
+  -- ۹) ------------------- گزارش رصد: اعداد دقیقاً از همین جدول
   select count(*) into v_total from inv.reservation_expiry_failures;
   select count(*) into v_open
     from inv.reservation_expiry_failures f
@@ -346,7 +457,7 @@ begin
   raise notice 'PASS HEALTH | کل/باز دقیقاً %/% خوانده شد، بیشینه %، تاریخ‌های گزارش برابر جدول و رزرو رفع‌شده با status=released در فهرست است',
     v_total, v_open, v_max;
 
-  -- ۸) ------------------ برنامه اجرایی واقعی در حجم، با تنظیمات پیش‌فرض
+  -- ۱۰) ------------------ برنامه اجرایی واقعی در حجم، با تنظیمات پیش‌فرض
   insert into inv.reservations
     (warehouse_id, variant_id, order_line_id, quantity, status, expires_at, created_at)
   select v_wh, v_a, gen_random_uuid(), 1, 'active',
@@ -407,7 +518,7 @@ begin
   end if;
   raise notice 'PASS PLAN | حجم ۱۵۰۰ رزرو منقضی و ۱۲۰۰ ردیف خطا ⇒ % | %', v_shape, v_exec;
 
-  -- ۹) ------------------------------------------- گزارش بدون مجوز خوانده نشود
+  -- ۱۱) ------------------------------------------- گزارش بدون مجوز خوانده نشود
   begin
     perform sys.health_report(v_norole);
     raise exception 'FAIL PERM: گزارش بدون مجوز خوانده شد';

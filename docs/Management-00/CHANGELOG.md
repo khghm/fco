@@ -24,15 +24,17 @@
 - ایندکس یکتای `reservation_expiry_failures_reservation_uidx (reservation_id)` جای ایندکس غیریکتای 0017 را گرفت: هم ستون پیشرو `exists` اولویت صف 0018 است و هم هدف `on conflict`؛ ایندکس `run_id` برای cascade می‌ماند. `down` مستقیم به وضعیت 0017 برمی‌گردد (تابع 0017، ایندکس غیریکتا، `health_report` 0010، افتادن دو ستون). `0018` جدا ماند.
 
 ### Added
-- سوئیت `0019_reservation_expiry_failures_negative` جای دو سوئیت قبلی: `PASS ABSENT`/`INDEX`/`SINGLE`/`SCOPE`/`ORDER`/`HEALTH`/`PLAN`/`PERM`.
+- سوئیت `0019_reservation_expiry_failures_negative` جای دو سوئیت قبلی: `PASS ABSENT`/`INDEX`/`BACKFILL`/`DEFAULT`/`SINGLE`/`SCOPE`/`ORDER`/`HEALTH`/`PLAN`/`PERM`.
 
 ### Verified
-- سوئیت 0019: `PASS SINGLE` (۲۷ slot ⇒ ۱ ردیف، `failures=27`، نخستین/آخرین دو لحظه جدا)، `PASS SCOPE`، `PASS ORDER`، `PASS HEALTH` (کل/باز دقیقاً `3/2`، تاریخ‌ها برابر جدول، رزرو رفع‌شده با `status=released`)، `PASS PLAN` (`hashed SubPlan`، `Execution Time: 1.986 ms`) و `PASS ABSENT` (هیچ اثری از سقف/هرس/`FCO-1079`).
+- سوئیت 0019: `PASS BACKFILL` (۳ ردیف per-slot قدیمی ⇒ ۱ ردیف با `failures=3`، پیام/`run_id` جدیدترین، `first_failed_at` قدیمی‌ترین)، `PASS DEFAULT` (بدون پیش‌فرض؛ درج ناقص با `not_null_violation` رد شد)، `PASS SINGLE` (۲۷ slot ⇒ ۱ ردیف، `failures=27`، نخستین/آخرین دو لحظه جدا)، `PASS SCOPE`، `PASS ORDER`، `PASS HEALTH` (کل/باز دقیقاً `3/2`، تاریخ‌ها برابر جدول، رزرو رفع‌شده با `status=released`)، `PASS PLAN` (`hashed SubPlan`، `Execution Time: 1.986 ms`) و `PASS ABSENT` (هیچ اثری از سقف/هرس/`FCO-1079`).
 - سوئیت‌های `0010`، `0017` و `0018` روی 0019 سبز ماندند.
 - قرمز عمدی A: `on conflict … do nothing` به‌جای شمارش ⇒ `FAIL SINGLE: شمارنده شکست در دور 2 برابر 1 است (انتظار 2)` (exit 3).
 - قرمز عمدی B: بازگشت به `now()` ⇒ `FAIL SINGLE: زمان آخرین شکست در دور 2 جلو نرفت (… ⇒ همان لحظه)` (exit 3).
 - قرمز عمدی C: حذف بخش `reservations` از گزارش ⇒ `FAIL HEALTH: بخش reservations در گزارش نیست` (exit 3).
 - قرمز عمدی D: برداشتن فیلتر `status='active'` ⇒ `FAIL HEALTH: expiry_failures_open=3 (انتظار 2)` (exit 3).
+- قرمز عمدی E: بازگرداندن `default 1` روی `failures` ⇒ `FAIL DEFAULT: 1 ستون پیش‌فرض دارد` (exit 3).
+- قرمز عمدی F: نگه‌داشتن قدیمی‌ترین ردیف در جمع‌کردن ⇒ `FAIL BACKFILL: ردیف جدیدترین نماند (sqlstate=23514 message=قدیمی، انتظار XX000/جدید)` (exit 3).
 - CI کامل روی دیتابیس تازه (۱۹ Migration): `PASS 19 Migration`، `PASS 14 مجموعه آزمون سبز`، `PASS بسته خودکفاست و fingerprint برابر است`، lint/typecheck/test/build سبز، `CI_EXIT=0`؛ `build_fingerprint` و `bundle_fingerprint` هر دو `33|57|19|f8b394b7dc45c72e8d59e0af98450fb3`.
 - بازگشت داده (DB متوقف روی 0018 با ۳ ردیف per-slot قدیمی): `PASS BACKFILL` — یک ردیف با `failures=3`، پیام/`run_id` جدیدترین، `first_failed_at` = قدیمی‌ترین، و درج بدون دو ستون با `not_null_violation` شکست خورد.
 
