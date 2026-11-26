@@ -1,6 +1,6 @@
 # تغییرات (CHANGELOG)
 
-> **وضعیت:** زنده · **نسخه:** v1.22 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۵
+> **وضعیت:** زنده · **نسخه:** v1.23 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۵
 > قالب بر پایه Keep a Changelog، تاریخ‌ها شمسی + ISO. هر تغییر در **رفتار، دامنه یا ساختار اسناد** یک ردیف اینجا دارد.
 > شاهد هر نسخه: `git show --stat <commit>`.
 > **مالک تاریخ تغییرات اسناد و مخزن.**
@@ -13,20 +13,20 @@
 - npm workspaces برای `apps/shop`، `apps/admin`، `packages/application` و `packages/infrastructure`؛ scaffold دو اپ Next.js با TypeScript strict.
 - نخستین برش کاتالوگ عمومی: صفحهٔ فارسی/RTL، `GET /api/v1/products`، اعتبارسنجی query و repository فقط‌خواندنی PostgreSQL با نقش `fco_app`.
 - آزمون‌های قرارداد API برای پاسخ موفق، ورودی نامعتبر و دسترس‌ناپذیری PostgreSQL.
+- اسکریپت `scripts/catalog-e2e.sh`، seed ثابت و آزمون HTTP مبتنی بر Node؛ job مستقل CI دیتابیس جدا می‌سازد و مسیر migration تا پاسخ API را اجرا می‌کند.
 
 ### Changed
 - وضعیت README و Project Master Control با پیشرفت BR-1/BR-2 هم‌راستا شد؛ قرارداد واقعی endpoint در `API_SPECIFICATION.md` ثبت شد و READMEهای scaffold با راهنمای مخزن جایگزین شدند.
 
 ### Verified
-- دیتابیس جداگانهٔ `fco_catalog_e2e_20261126` با ۱۹ Migration موجود ساخته شد؛ fixture محصول آزمایشی را از `cat.search_products` خواند (۶۵۰٬۰۰۰ ریال، موجودی قابل‌فروش ۴). دیتابیس توسعهٔ `fco` تغییر نکرد.
-- `npm test` با `FCO_E2E_DATABASE_URL` روی handler واقعی API و PostgreSQL: ۱۳ آزمون سبز، شامل پاسخ `200` برای محصول seedشده و `400 / FCO-1001` برای ورودی نامعتبر. `npm run lint` و `npm run typecheck` سبز هستند.
-- آزمون HTTP واقعی با `next start --hostname 127.0.0.1 --port 45123`: درخواست معتبر `GET /api/v1/products?q=FCO` ⇒ `200` با قیمت `650000` ریال، موجودی قابل‌فروش `4` و `in_stock=true`؛ درخواست نامعتبر `GET /api/v1/products?page_size=61` ⇒ `400 / FCO-1001`. هر دو پاسخ `request_id` داشتند.
+- اجرای `scripts/catalog-e2e.sh` از ابتدا تا انتها روی Windows/Git Bash: دیتابیس تازه با Migrationهای `0001..0019`، fixture ثابت، ۱۳ آزمون، lint/typecheck/build هر دو اپ و HTTP production green. پاسخ معتبر `GET /api/v1/products?q=FCO` ⇒ `200`, `e2e-shirt`, `650000` ریال، موجودی `4`; ورودی نامعتبر `page_size=61` ⇒ `400 / FCO-1001`. تطابق `request_id` در header/body نیز assertion دارد.
+- CI job مستقل `catalog-e2e` به همان اسکریپت وصل شد؛ اسکریپت دیتابیس موجود را حذف/بازنویسی نمی‌کند و در CI دیتابیس در سرویس موقت PostgreSQL می‌ماند.
 
 ### Limitation
-- دیتابیس توسعهٔ `fco` هنوز Migrationهای کاتالوگ را ندارد؛ آزمون دیتابیس روی DB جدا انجام شد. صفحهٔ جزئیات، رسانه، نرخ‌محدودسازی، عملیات مدیریت و آزمون خودکار end-to-end همچنان بازند.
+- دیتابیس توسعهٔ `fco` هنوز Migrationهای کاتالوگ را ندارد؛ E2E روی دیتابیس جداست. صفحهٔ جزئیات، رسانه، نرخ‌محدودسازی و عملیات مدیریت همچنان بازند.
 
 ### Planned
-- ادامهٔ BR-2: جزئیات محصول/دسته و رسانه، پنل محصول/قیمت، نرخ‌محدودسازی و آزمون E2E؛ سپس BR-3 تا BR-5 طبق گیت‌های پذیرش.
+- ادامهٔ BR-2: جزئیات محصول/دسته و رسانه، پنل محصول/قیمت و نرخ‌محدودسازی؛ سپس BR-3 تا BR-5 طبق گیت‌های پذیرش.
 
 ---
 

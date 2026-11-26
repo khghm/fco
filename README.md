@@ -71,14 +71,26 @@ docker compose -f infra/compose/docker-compose.yml ps
 
 ## وضعیت اتصال کاتالوگ
 
-در ۲۰۲۶-۱۱-۲۶، دیتابیس جداگانهٔ `fco_catalog_e2e_20261126` با ۱۹ Migration موجود ساخته و با یک محصول آزمایشی seed شد؛ دیتابیس توسعهٔ `fco` دست‌نخورده ماند. آزمون opt-in در [`route.integration.test.ts`](apps/shop/src/app/api/v1/products/route.integration.test.ts) مستقیماً handler را با PostgreSQL واقعی صدا می‌زند:
+آزمون بازتولیدپذیر در [`catalog-e2e.sh`](scripts/catalog-e2e.sh) دیتابیس تازه‌ای با نام یکتای تولیدشده می‌سازد، ۱۹ Migration را اعمال می‌کند، [`catalog_e2e_seed.sql`](packages/infrastructure/tests/fixtures/catalog_e2e_seed.sql) را اجرا می‌کند، lint/typecheck/test/build را می‌سنجد و سپس سرور production را روی loopback با پورت آزاد بالا می‌آورد. اسکریپت هیچ دیتابیسی را حذف یا بازنویسی نمی‌کند؛ نام دیتابیس را چاپ می‌کند و آن را برای بررسی نگه می‌دارد.
 
-```powershell
-$env:FCO_E2E_DATABASE_URL = "<connection string for the isolated E2E database>"
-npm test
+از ریشهٔ مخزن (با Git Bash در ویندوز) اجرا کنید:
+
+```bash
+DATABASE_URL=postgresql://fco:fco_local_dev_only@localhost:5432/fco \
+  bash scripts/catalog-e2e.sh
 ```
 
-**آزمون واقعی HTTP:** سرور production با bind صریح `127.0.0.1` روی پورت بالای `45123` اجرا شد. `GET /api/v1/products?q=FCO` پاسخ `200` و محصول `e2e-shirt` با `price_rial=650000`، `available_qty=4` و `in_stock=true` داد؛ `GET /api/v1/products?page_size=61` پاسخ `400 / FCO-1001` داد. هر دو پاسخ `request_id` داشتند. جزئیات محصول، رسانه و سایر محدودیت‌های برش در `docs/Architecture-02/API_SPECIFICATION.md` ثبت شده‌اند.
+همین اسکریپت در job مستقل `Storefront catalog HTTP E2E` در [ci.yml](.github/workflows/ci.yml) با PostgreSQL 16 اجرا می‌شود. اجرای محلی موفق در دیتابیسِ خودکارنام‌گذاری‌شدهٔ `fco_catalog_e2e_20261126131901_1641` همهٔ ۱۹ Migration، ۱۳ تست، lint، typecheck و build هر دو اپ را گذراند؛ هیچ آزمون یا seedای به این نام وابسته نیست:
+
+```text
+GET /api/v1/products?q=FCO
+200 | slug=e2e-shirt | price_rial=650000 | available_qty=4 | in_stock=true
+
+GET /api/v1/products?page_size=61
+400 | code=FCO-1001
+```
+
+در هر دو پاسخ، `request_id` در body و header برابر بود. دیتابیس توسعهٔ `fco` تغییر نکرد. صفحهٔ جزئیات، رسانه و سایر محدودیت‌های برش در `docs/Architecture-02/API_SPECIFICATION.md` آمده‌اند.
 
 ## قواعد غیرقابل‌مذاکره
 

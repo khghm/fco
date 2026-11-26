@@ -2,7 +2,7 @@ name: CI
 
 # BR-1 گام ۱۰: پنج مرحله lint / typecheck / test / migration / build.
 # همان اسکریپتی اجرا می‌شود که محلی هم اجرا می‌شود (scripts/ci.sh) تا شاهد
-# محلی و CI یکی باشند.
+# محلی و CI یکی باشند. Storefront HTTP E2E در job جداگانه اجرا می‌شود.
 
 on:
   push:
@@ -70,3 +70,50 @@ jobs:
       - name: Show failure summary
         if: failure()
         run: echo "::error::CI قرمز شد — همان مرحله را محلی با bash scripts/ci.sh <stage> اجرا کنید."
+
+  catalog-e2e:
+    name: Storefront catalog HTTP E2E
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: fco
+          POSTGRES_PASSWORD: fco
+          POSTGRES_DB: fco
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fco -d fco"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: "5432"
+      PGUSER: fco
+      PGPASSWORD: fco
+      POSTGRES_USER: fco
+      POSTGRES_DB: fco
+      PSQL: psql
+      DATABASE_URL: postgresql://fco:fco@127.0.0.1:5432/fco
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Node workspaces
+        run: npm ci
+
+      - name: Migrate, seed, build and verify storefront HTTP API
+        run: bash scripts/catalog-e2e.sh
