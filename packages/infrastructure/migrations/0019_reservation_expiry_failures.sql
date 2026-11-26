@@ -1,23 +1,85 @@
 -- =============================================================================
--- 0021_reservation_expiry_failure_visibility — BR-2: شکست‌های مکرر انقضا دیده شوند
--- مالک طرح: docs/Architecture-02/DATABASE_DESIGN.md §3.5 و §۳.۹
---           docs/Engineering-04/TEST_STRATEGY.md §4.1 (T-INV-08، T-OPS)
---           docs/Engineering-04/OBSERVABILITY_PLAN.md (برنامه‌ریزی‌شده)
+-- 0019_reservation_expiry_failures — BR-2: نگهداشت و دیده‌شدن شکست‌های انقضا
+-- مالک طرح: docs/Architecture-02/DATABASE_DESIGN.md §3.5
+--           docs/Engineering-04/TEST_STRATEGY.md §4.1 (T-INV-07/08/09)
+--           docs/Architecture-02/ADR/ADR-010-data-retention.md
 --
--- دو شکاف دیده‌شدن (observability) که بازبینی 0020 نشان داد:
---   ۱) `first_failed_at` و `occurred_at` با `now()` نوشته می‌شدند. `now()`
---      زمانِ ابتدای تراکنش است، پس در یک اجرای Job همه شکست‌ها (و حتی شکست‌های
---      پشت‌سرهم یک دسته طولانی) یک لحظه ثبت می‌شدند: «نخستین شکست» و «آخرین
---      شکست» از هم قابل تفکیک نبود و آزمون هم فقط می‌توانست `<=` را بسنجد —
---      یعنی بررسی‌اش تشریفاتی بود. حالا `clock_timestamp()` زمان واقعی شکست
---      را می‌نویسد و «نخستین» در `on conflict` بازنویسی نمی‌شود.
---   ۲) هیچ‌جا دیده نمی‌شد کدام رزروها مکرراً در انقضا شکست می‌خورند؛ تنها اثرشان
---      یک یادداشت شمارشی روی `sys.job_runs.error` بود. `sys.health_report` حالا
---      بخش `reservations.expiry_failures` را دارد: شمار رزروهای خراب، شمار
---      رزروهایی که هنوز `active` هستند (یعنی موجودی رزروشده قفل مانده)، بیشترین
---      شمار شکست، قدیمی‌ترین تاریخ نخستین شکست و ۱۰ رزرو بدترین.
+-- این Migration سه گام بازبینی را در یک تغییر واحد جمع می‌کند (ادغام
+-- 0019–0021 پیش از انتشار). ترتیب گام‌ها:
+--   ۱) نگهداشت: 0017 برای هر شکست یک ردیف می‌گذاشت، پس رزروی که ساعت‌ها خراب
+--      می‌ماند در هر slot یک ردیف اضافه می‌کرد و نگهداشتش فقط به cascade
+--      `sys.job_runs` تکیه داشت که هیچ Jobی اجرایش نمی‌کند. راه‌حل هرس نبود؛
+--      ساختار داده: یکتایی `reservation_id` ⇒ یک ردیف برای هر رزرو، با درج
+--      `on conflict … do update`. پس هیچ `delete`ی در مسیر شکست نیست، دامنه
+--      هرس بی‌معنا می‌شود و سقف پیکربندی وجود ندارد. رشد جدول = تعداد
+--      رزروهایی که تا امروز شکست خورده‌اند، نه تعداد slotها.
+--   ۲) سیگنال: `failures` شمار تلاش‌های ناموفق و `first_failed_at` تاریخ نخستین
+--      شکست را نگه می‌دارد؛ ردیف‌های تکراری قبلی در همین Migration به یک ردیف
+--      جمع می‌شوند (شمار = تعداد ردیف‌ها، تاریخ نخستین = قدیمی‌ترین).
+--   ۳) زمان و دیده‌شدن: زمان شکست با `clock_timestamp()` نوشته می‌شود، نه
+--      `now()` که ابتدای تراکنش است (وگرنه همه شکست‌های یک دسته یک لحظه‌اند و
+--      «نخستین/آخرین» از هم جدا نمی‌شوند)؛ و `sys.health_report` بخش
+--      `reservations` می‌گیرد تا رزروهایی که مکرراً شکست می‌خورند دیده شوند.
+--
+-- ایندکس: `exists` اولویت صف 0018 با `reservation_id` کار می‌کند؛ ایندکس یکتا
+-- هم همان ستون پیشرو را پوشش می‌دهد و هم هدف `on conflict` است. ایندکس
+-- `reservation_expiry_failures_run_idx` (0018) برای cascade می‌ماند.
 -- =============================================================================
 
+alter table inv.reservation_expiry_failures
+  add column failures        integer not null default 1,
+  add column first_failed_at timestamptz not null default now();
+
+alter table inv.reservation_expiry_failures
+  add constraint reservation_expiry_failures_failures_check check (failures >= 1);
+
+-- ردیف‌های per-slot موجود (اگر 0017 در محیطی اجرا شده باشد) به یک ردیف برای هر
+-- رزرو جمع می‌شوند: شمار = تعداد ردیف‌های قبلی، تاریخ نخستین = قدیمی‌ترین، و
+-- ردیف جدیدترین (occurred_at/id) می‌ماند تا آخرین run_id و پیام حفظ شود.
+with keep as (
+  select reservation_id,
+         count(*)::integer as total,
+         min(occurred_at) as first_at,
+         (array_agg(id order by occurred_at desc, id desc))[1] as keep_id
+    from inv.reservation_expiry_failures
+   group by reservation_id
+)
+update inv.reservation_expiry_failures f
+   set failures = keep.total,
+       first_failed_at = keep.first_at
+  from keep
+ where f.id = keep.keep_id;
+
+delete from inv.reservation_expiry_failures f
+ using (
+   select reservation_id,
+          (array_agg(id order by occurred_at desc, id desc))[1] as keep_id
+     from inv.reservation_expiry_failures
+    group by reservation_id
+ ) d
+ where f.reservation_id = d.reservation_id
+   and f.id <> d.keep_id;
+
+drop index if exists inv.reservation_expiry_failures_reservation_idx;
+
+create unique index reservation_expiry_failures_reservation_uidx
+  on inv.reservation_expiry_failures (reservation_id);
+
+comment on index inv.reservation_expiry_failures_reservation_uidx is
+  'یک ردیف برای هر رزرو: کلید exists اولویت صف (0018) و هدف on conflict (0019)';
+
+comment on table inv.reservation_expiry_failures is
+  'هر رزروی که Job انقضا نتوانست آزاد کند: یک ردیف با آخرین run_id/sqlstate، شمار شکست‌ها و تاریخ نخستین شکست (T-INV-07/08/09)';
+comment on column inv.reservation_expiry_failures.failures is
+  'شمار تلاش‌های ناموفق آزادسازی این رزرو (نه تعداد ردیف)';
+comment on column inv.reservation_expiry_failures.occurred_at is
+  'زمان آخرین شکست';
+comment on column inv.reservation_expiry_failures.first_failed_at is
+  'زمان نخستین شکست همین رزرو';
+
+-- -----------------------------------------------------------------------------
+-- expire_reservations: شکست هر رزرو در یک ردیف upsert
+-- -----------------------------------------------------------------------------
 create or replace function inv.expire_reservations(
   p_actor uuid,
   p_scheduled_for timestamptz default date_trunc('hour', now()),
@@ -99,7 +161,7 @@ begin
 end $$;
 
 comment on function inv.expire_reservations(uuid, timestamptz, integer) is
-  'outcome: ran | already_ran | failed؛ شکست هر رزرو در یک ردیف upsert با زمان واقعی (clock_timestamp) و شمار شکست ثبت می‌شود، رزروهای سابقه‌دار آخر صف‌اند';
+  'outcome: ran | already_ran | failed؛ شکست هر رزرو در یک ردیف upsert با زمان واقعی و شمار شکست ثبت می‌شود، رزروهای سابقه‌دار آخر صف‌اند';
 
 revoke all on function inv.expire_reservations(uuid, timestamptz, integer) from public;
 grant execute on function inv.expire_reservations(uuid, timestamptz, integer) to fco_app;
@@ -148,8 +210,6 @@ begin
                                  from inv.reservation_expiry_failures f
                                  join inv.reservations r on r.id = f.reservation_id
                                 where r.status = 'active'),
-      'max_failures', coalesce((select max(f.failures)
-                                  from inv.reservation_expiry_failures f), 0),
       'oldest_first_failed_at', (select min(f.first_failed_at)
                                    from inv.reservation_expiry_failures f),
       'top_failures', coalesce((

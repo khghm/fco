@@ -1,6 +1,6 @@
 # تغییرات (CHANGELOG)
 
-> **وضعیت:** زنده · **نسخه:** v1.21 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۵
+> **وضعیت:** زنده · **نسخه:** v1.22 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۵
 > قالب بر پایه Keep a Changelog، تاریخ‌ها شمسی + ISO. هر تغییر در **رفتار، دامنه یا ساختار اسناد** یک ردیف اینجا دارد.
 > شاهد هر نسخه: `git show --stat <commit>`.
 > **مالک تاریخ تغییرات اسناد و مخزن.**
@@ -14,79 +14,30 @@
 
 ---
 
-## [0.20.5] — ۱۴۰۵/۰۹/۰۵ (2026-11-26)
+## [0.20.2] — ۱۴۰۵/۰۹/۰۵ (2026-11-26)
 
-### Changed (بازبینی تازه روی `feea3f2`: سنجه‌های گزارش رصد)
-- **انتظارهای `health_report` به مقایسه دقیق رسید:** `expiry_failures`، `expiry_failures_open`، `max_failures` و `oldest_first_failed_at` حالا با همان کوئری‌هایی که آزمون از جدول می‌گیرد مقایسه می‌شوند و تاریخ‌های `top_failures` باید عیناً برابر جدول باشند (پیش‌تر نبودنشان و «بزرگ‌تر از صفر بودن» سنجیده می‌شد).
-- فیکسچر سوئیت `0021` یک رزرو «شکست‌خورده و سپس رفع‌شده» گرفت، پس `expiry_failures_open` از `expiry_failures` تفکیک‌شدنی است و `status=released` هم در فهرست دیده می‌شود.
-- هیچ Migration‌ای در این بازبینی تغییر نکرد؛ تنها سوئیت و اسناد. (کد بی‌مصرفی که در دو Migration منتشرنشده یافت شد — `max_failures` تکراری با `top_failures[0].failures` و تنظیم بازنشسته `failure_keep` از 0019 — به تصمیم ادغام 0019–0021 گره خورده است.)
-
-### Verified
-- `CI PASS | lint · typecheck · test · migration · build` · `PASS 21 Migration` · `PASS 15 مجموعه آزمون سبز` · `build_fingerprint = bundle_fingerprint = 33|57|21|6c484cd5426d87060cbefdbb5f4c53c4` (exit 0؛ بدون تغییر Migration، پس fingerprint مثل 0.20.4 مانده).
-- سوئیت 0021 روی دیتابیس تازه با ۲۱ Migration: `PASS HEALTH | کل/باز/بیشینه دقیقاً 2/1/3`، `PASS TIME`، `PASS PERM`.
-- قرمز عمدی D–G (هر چهار exit 3): برداشتن فیلتر `status='active'` ⇒ `FAIL HEALTH: expiry_failures_open=2 (انتظار 1)`؛ `max`→`min` ⇒ `max_failures=1 (انتظار 3)`؛ `occurred_at` جای `first_failed_at` ⇒ `FAIL HEALTH: first_failed_at گزارش … (جدول …)`؛ `order by failures asc` ⇒ `FAIL HEALTH: فهرست top_failures با بیشترین شکست مرتب نشده است`.
-
-## [0.20.4] — ۱۴۰۵/۰۹/۰۵ (2026-11-26)
-
-### Fixed (بازبینی پنجم: زمان شکست و دیده‌شدن شکست‌های مکرر)
-- **`first_failed_at` حالا واقعاً «نخستین» است:** در 0020 زمان شکست با `now()` نوشته می‌شد که ابتدای تراکنش است؛ سه slot پیوسته یک لحظه می‌گرفتند و بررسی «تاریخ نخستین شکست حفظ شد» در سوئیت 0020 تشریفاتی بود (فقط `<=` سنجیده می‌شد). `0021_reservation_expiry_failure_visibility` زمان واقعی را با `clock_timestamp()` می‌نویسد و `first_failed_at` را در `on conflict` بازنویسی نمی‌کند؛ سوئیت 0020 حالا نخستین را پس از شکست بیست‌وهشتم دست‌نخورده و `occurred_at` را اکیداً صعودی می‌سنجد.
-- **شکست‌های مکرر انقضا دیده می‌شوند:** `sys.health_report` بخش `reservations` گرفت — `expiry_failures` (شمار رزروهای شکست‌خورده)، `expiry_failures_open` (از آن‌ها که هنوز `active`اند و موجودی رزروشده را قفل نگه داشته‌اند)، `max_failures`، `oldest_first_failed_at` و `top_failures` (۱۰ رزرو بدتر با `failures`، تاریخ نخستین/آخرین شکست، `sqlstate`، `status` و انبار/تنوع). مجوز همان `platform.health.read` است.
+### Changed (ادغام سه Migration منتشرنشده در `0019_reservation_expiry_failures`)
+- **نگهداشت ساختاری شد، نه هرس:** یکتایی `reservation_id` ⇒ یک ردیف برای هر رزرو؛ درج با `on conflict … do update` که آخرین `run_id`/`sqlstate`/`message`/`occurred_at` را می‌نویسد، `failures` را یک واحد بالا می‌برد و `first_failed_at` (تاریخ نخستین شکست) را بازنویسی نمی‌کند. رشد جدول = تعداد رزروهایی که تا امروز شکست خورده‌اند، نه تعداد slotها؛ هیچ `delete`ی در مسیر شکست نیست.
+- **زمان واقعی شکست:** `clock_timestamp()` جای `now()` (چه بسا `now()` ابتدای تراکنش است و همه شکست‌های یک دسته را یک لحظه می‌کرد)؛ پس «نخستین» و «آخرین» شکست قابل تفکیک و قابل آزمون‌اند.
+- **رصد:** `sys.health_report` بخش `reservations` گرفت — `expiry_failures`، `expiry_failures_open` (رزروهایی که هنوز `active`اند و موجودی رزروشده را قفل نگه داشته‌اند)، `oldest_first_failed_at` و `top_failures` (۱۰ رزرو بدتر با تاریخ‌ها، `sqlstate`، `status`، انبار و تنوع). کلید `max_failures` ساخته نشد چون همیشه `top_failures[0].failures` است.
+- **چیزهایی که هرگز ساخته نمی‌شوند:** سقف `job.reservation_expiry.failure_keep` (که پس از ساخت با `sys.setting_versions … on delete restrict` برای همیشه در schema می‌ماند)، هرس داخل بلوک `exception` و کد خطای `FCO-1079`.
+- ایندکس یکتای `reservation_expiry_failures_reservation_uidx (reservation_id)` جای ایندکس غیریکتای 0017 را گرفت: هم ستون پیشرو `exists` اولویت صف 0018 است و هم هدف `on conflict`؛ ایندکس `run_id` برای cascade می‌ماند. `down` مستقیم به وضعیت 0017 برمی‌گردد (تابع 0017، ایندکس غیریکتا، `health_report` 0010، افتادن دو ستون). `0018` جدا ماند.
 
 ### Added
-- Migration `0021_reservation_expiry_failure_visibility` (+`.down.sql` که تعریف 0020 و `health_report` 0010 را عیناً برمی‌گرداند) و سوئیت `0021_reservation_expiry_failure_visibility_negative`: `PASS TIME`/`PASS HEALTH`/`PASS PERM`.
+- سوئیت `0019_reservation_expiry_failures_negative` جای دو سوئیت قبلی: `PASS ABSENT`/`INDEX`/`SINGLE`/`SCOPE`/`ORDER`/`HEALTH`/`PLAN`/`PERM`.
 
 ### Verified
-- `CI PASS | lint · typecheck · test · migration · build` · `PASS 21 Migration` · `PASS 15 مجموعه آزمون سبز` · `build_fingerprint = bundle_fingerprint = 33|57|21|6c484cd5426d87060cbefdbb5f4c53c4` (exit 0).
-- سوئیت 0021: `PASS TIME` (سه slot ⇒ نخستین شکست ثابت، آخرین شکست اکیداً جلو، `failures=3`)، `PASS HEALTH` (رزرو خراب با `failures=3`/`status=active`/`23514` در `top_failures`؛ رزرو سالم نیامد؛ فهرست مرتب) و `PASS PERM` (`FCO-1003`).
-- سوئیت‌های `0010` (که `health_report` را می‌سنجد)، `0017`، `0018` و `0020` روی 0021 سبز ماندند.
-- قرمز عمدی A: بازگرداندن `now()` (بدنه 0020) ⇒ `FAIL SINGLE: نخستین و آخرین شکست از هم تفکیک نشدند (...)` (exit 3).
-- قرمز عمدی B: افزودن `first_failed_at = v_failed_at` به `on conflict` ⇒ `FAIL TIME: تاریخ نخستین شکست در دور 2 بازنویسی شد` (exit 3).
-- قرمز عمدی C: حذف بخش `reservations` از `health_report` ⇒ `FAIL HEALTH: بخش reservations در گزارش نیست` (exit 3)، سپس بازگرداندن سبز.
-
-## [0.20.3] — ۱۴۰۵/۰۹/۰۵ (2026-11-26)
-
-### Changed (بازبینی چهارم روی 0019: نگهداشت ساختاری، نه هرس)
-- **هرس داخل بلوک `exception` حذف شد:** در 0019 نگهداشت در همان زیرتراکنشی اجرا می‌شد که خطای رزرو را مدیریت می‌کند؛ خطای همان `DELETE` به بلوک بیرونی می‌رسید، آزادسازی‌های موفق همان دسته را برمی‌گرداند و Job را `failed` می‌کرد — یعنی `job.max_attempts` را می‌سوزاند، همان چیزی که 0017 عمداً از آن پرهیز داشت. حالا هیچ `delete`ی در مسیر شکست نیست.
-- **دامنه و سقف اختراعی حذف شد:** هرس فقط رزروهایی را می‌دید که در همان دور شکست می‌خوردند (رزرو رفع‌شده سابقه‌اش را برای همیشه نگه می‌داشت و کم‌کردن سقف ردیف‌های موجود را هرس نمی‌کرد) و عدد ۲۴ فقط «یک روز در آهنگ ساعتی» را رمز می‌کرد و سیگنال «چند بار شکست خورد» را با حذف ردیف‌ها از بین می‌برد.
-- **نگهداشت ساختاری شد:** `0020_reservation_expiry_failure_single_row` یکتایی `reservation_id` را می‌گذارد (یک ردیف برای هر رزرو) و شکست را با `on conflict … do update` ثبت می‌کند: `run_id`/`sqlstate`/`message`/`occurred_at` آخرین شکست، `failures` شمارنده تلاش‌های ناموفق و `first_failed_at` تاریخ نخستین شکست. رشد جدول = تعداد رزروهای خراب تا امروز، نه تعداد slotها.
-- تنظیم `job.reservation_expiry.failure_keep` بازنشسته شد: ردیفش به‌خاطر `on delete restrict` تاریخچه تنظیم‌ها می‌ماند، توضیحش بازنشستگی را اعلام می‌کند و هیچ تابعی نمی‌خواندش؛ `FCO-1079` و بررسی بازه‌اش حذف شد.
-- **`PASS PLAN` واقعی شد:** قبلاً با خاموش‌کردن `enable_hashjoin`/`enable_mergejoin`/`enable_seqscan` مسیر ایندکس به زور ساخته می‌شد. حالا با ۱۵۰۰ رزرو منقضی و ۱۲۰۰ ردیف خطا و `analyze`، برنامه واقعی پلنر ثبت می‌شود؛ آزمون شکل‌های مجاز (ایندکس یکتا / `hashed SubPlan` / hash semi join) را می‌پذیرد و اسکن ترتیبی تکرارشده را رد می‌کند. اجرای واقعی: `hashed SubPlan` با `Execution Time: 1.772 ms`.
-
-### Added
-- Migration `0020_reservation_expiry_failure_single_row` (+`.down.sql` که تعریف 0019 و ایندکس 0017 را برمی‌گرداند و ستون‌های تازه را می‌اندازد) و سوئیت `0020_reservation_expiry_failure_single_row_negative`: `PASS RETIRED`/`INDEX`/`SINGLE`/`SCOPE`/`ORDER`/`PLAN`. سوئیت 0019 (سقف ۲۴) حذف شد چون رفتاری که می‌سنجید دیگر وجود ندارد.
-- سوئیت `0018` با مدل جدید هم‌خوان شد: `PASS RETRYQ` و `PASS HEAL` حالا به‌جای شمار ردیف، ردیف + مجموع `failures` را می‌سنجند.
-
-### Verified
-- `CI PASS | lint · typecheck · test · migration · build` · `PASS 20 Migration` · `PASS 14 مجموعه آزمون سبز` · `build_fingerprint = bundle_fingerprint = 33|57|20|0f523cdea5d874b5a09ec59f66b26946` (exit 0).
-- سوئیت 0020 روی دیتابیس تازه با ۲۰ Migration: `PASS SINGLE` (۲۷ slot ⇒ ۱ ردیف، `failures=27`)، `PASS SCOPE`، `PASS ORDER`، `PASS PLAN` (`hashed SubPlan`، `Execution Time: 1.772 ms`).
-- سوئیت‌های `0017` و `0018` بدون تغییر رفتار سبز ماندند (`ALL STEP-BR2-3B`/`3C`، exit 0).
-- قرمز عمدی A: بازگرداندن بدنه 0019 ⇒ `FAIL RETIRED: 1 تابع هنوز تنظیم بازنشسته failure_keep را می‌خواند` (exit 3).
-- قرمز عمدی B: upsert بدون شمارنده (`do nothing`) ⇒ `FAIL SINGLE: failures=1 (انتظار ۲۷ تلاش ناموفق)` (exit 3)، سپس بازگرداندن سبز.
+- سوئیت 0019: `PASS SINGLE` (۲۷ slot ⇒ ۱ ردیف، `failures=27`، نخستین/آخرین دو لحظه جدا)، `PASS SCOPE`، `PASS ORDER`، `PASS HEALTH` (کل/باز دقیقاً `3/2`، تاریخ‌ها برابر جدول، رزرو رفع‌شده با `status=released`)، `PASS PLAN` (`hashed SubPlan`، `Execution Time: 1.986 ms`) و `PASS ABSENT` (هیچ اثری از سقف/هرس/`FCO-1079`).
+- سوئیت‌های `0010`، `0017` و `0018` روی 0019 سبز ماندند.
+- قرمز عمدی A: `on conflict … do nothing` به‌جای شمارش ⇒ `FAIL SINGLE: شمارنده شکست در دور 2 برابر 1 است (انتظار 2)` (exit 3).
+- قرمز عمدی B: بازگشت به `now()` ⇒ `FAIL SINGLE: زمان آخرین شکست در دور 2 جلو نرفت (… ⇒ همان لحظه)` (exit 3).
+- قرمز عمدی C: حذف بخش `reservations` از گزارش ⇒ `FAIL HEALTH: بخش reservations در گزارش نیست` (exit 3).
+- قرمز عمدی D: برداشتن فیلتر `status='active'` ⇒ `FAIL HEALTH: expiry_failures_open=3 (انتظار 2)` (exit 3).
+- CI کامل روی دیتابیس تازه (۱۹ Migration): `PASS 19 Migration`، `PASS 14 مجموعه آزمون سبز`، `PASS بسته خودکفاست و fingerprint برابر است`، lint/typecheck/test/build سبز، `CI_EXIT=0`؛ `build_fingerprint` و `bundle_fingerprint` هر دو `33|57|19|6c6bfd99342cfead302a5f1dc1502634`.
 
 ### Limitation
 - ردیف رزروِ رفع‌شده می‌ماند (یک ردیف، بدون تاریخچه per-slot) تا خود رزرو حذف شود؛ جاروی سنی/عمومی این جدول به یک Job نگهداشت `sys.job_runs` گره خورده که ADR-010 اعدادش را به پیکربندی سپرده است.
 
-## [0.20.2] — ۱۴۰۵/۰۹/۰۵ (2026-11-26)
-
-### Fixed (بازبینی سوم: ایندکس و نگهداشت `inv.reservation_expiry_failures`)
-- **نگهداشت ادعا شده بود، نه اجرا:** 0.20.1 نگهداشت جدول خطا را به cascade `sys.job_runs` حواله داده بود، ولی هیچ Job یا Migration‌ای `sys.job_runs` را حذف نمی‌کند؛ پس cascade در عمل هرگز فعال نمی‌شد و رزروی که ساعت‌ها خراب می‌ماند در هر slot یک ردیف می‌گذاشت (۲۴ ردیف در روز برای هر رزرو) — رشد بی‌مرز. `0019_reservation_expiry_failure_retention` سقف نسخه‌دار `job.reservation_expiry.failure_keep` (پیش‌فرض ۲۴) را اضافه کرد و در همان slot ردیف‌های قدیمی‌تر همان رزرو را هرس می‌کند؛ حداقل/جدیدترین ردیف‌ها می‌مانند تا «سابقه‌دار بودن» — کلید اولویت صف 0018 — پاک نشود.
-- **ایندکس کلید `exists` بازبینی و تثبیت شد:** `0017` از پیش `reservation_expiry_failures_reservation_idx (reservation_id, occurred_at desc)` را می‌سازد و ستون پیشروش همان کلید `exists` در 0018 است؛ Migration تازه ایندکسی نساخت، فقط `comment on index` را ثبت کرد تا بی‌مصرف شمرده و حذف نشود. شاهد: `PASS INDEX` (ستون پیشرو از `pg_index`) و `PASS PLAN` (نام ایندکس در برنامه اجرایی).
-
-### Added
-- Migration `0019_reservation_expiry_failure_retention` (+`.down.sql` که تعریف 0018 را عیناً برمی‌گرداند و توضیح ایندکس را پاک می‌کند) و سوئیت `0019_reservation_expiry_failure_retention_negative` — `T-INV-08`: `PASS CONFIG`/`INDEX`/`PLAN`/`CAP`/`SCOPE`/`ORDER`.
-- خطای `FCO-1079` برای سقف نگهداشت خارج از بازه ۱..۱۰۰۰ (مثل `FCO-1077` برای دسته).
-
-### Changed
-- `DATABASE_DESIGN §3.5` (بند نگهداشت جای ادعای cascade؛ ایندکس `exists`)، `TEST_STRATEGY §4.1` (`T-INV-08`)، `IMPLEMENTATION_PLAN §4.2`.
-
-### Verified
-- `CI PASS | lint · typecheck · test · migration · build` · `PASS 19 Migration` · `PASS 14 مجموعه آزمون سبز` · `build_fingerprint = bundle_fingerprint = 33|57|19|78a5e73aaca0899a873dbfb68bc3076f` (exit 0).
-- سوئیت 0019: `PASS CAP` (۲۷ slot پیوسته ⇒ دقیقاً ۲۴ ردیف؛ قدیمی‌ترین هرس و ردیف جدیدترین slot مانده)، `PASS SCOPE` (۳۰ ردیف رزرو دیگر دست‌نخورده)، `PASS ORDER` (رزرو سالمِ تازه‌تر آزاد و سابقه‌دار خراب `active` ماند).
-- سوئیت‌های `0017` و `0018` روی 0019 بدون تغییر سبز ماندند (`ALL STEP-BR2-3B`/`3C`، exit 0).
-- قرمز عمدی: برداشتن بلوک هرس ⇒ `FAIL CAP: برای یک رزرو 27 ردیف ماند (انتظار 24 از 27 slot)` (exit 3)، سپس بازگرداندن سبز.
-
-### Limitation
-- سابقه رزروِ رفع‌شده هرس نمی‌شود (≤ `failure_keep` ردیف) و جاروی سنی/عمومی این جدول به یک Job نگهداشت `sys.job_runs` گره خورده که ADR-010 اعدادش را به پیکربندی سپرده است.
 
 ## [0.20.1] — ۱۴۰۵/۰۹/۰۵ (2026-11-25)
 

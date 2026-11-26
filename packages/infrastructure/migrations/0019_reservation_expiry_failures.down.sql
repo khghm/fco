@@ -1,8 +1,15 @@
 -- =============================================================================
--- 0021_reservation_expiry_failure_visibility.down — بازگشت به 0020 و 0010
--- تعریف تابع انقضا از 0020 (با `now()`) و تعریف `sys.health_report` از 0010
--- (بدون بخش reservations) عیناً بازگردانده می‌شود.
+-- 0019_reservation_expiry_failures.down — بازگشت مستقیم به وضعیت 0017
+-- یک ردیف per-slot از دست می‌رود (شمار و تاریخ نخستین شکست هم)، ایندکس یکتا
+-- جایش را به ایندکس 0017 می‌دهد، تعریف `expire_reservations` و
+-- `sys.health_report` عیناً به 0017/0010 برمی‌گردد و ستون‌های تازه می‌روند.
+-- هیچ تنظیمی در این Migration ساخته نشده بود که بازگردانی لازم داشته باشد.
 -- =============================================================================
+
+drop index if exists inv.reservation_expiry_failures_reservation_uidx;
+
+create index reservation_expiry_failures_reservation_idx
+  on inv.reservation_expiry_failures (reservation_id, occurred_at desc);
 
 create or replace function inv.expire_reservations(
   p_actor uuid,
@@ -32,15 +39,9 @@ begin
 
   begin
     for r in
-      select res.id
-        from inv.reservations res
-       where res.status = 'active' and res.expires_at <= now()
-       -- رزروهای سابقه‌دار به انتهای صف؛ رزرو خرابِ همیشگی نباید دسته را پر کند.
-       order by exists (
-                  select 1 from inv.reservation_expiry_failures f
-                   where f.reservation_id = res.id
-                ),
-                res.expires_at
+      select id from inv.reservations
+       where status = 'active' and expires_at <= now()
+       order by expires_at
        limit v_batch
        for update skip locked
     loop
@@ -50,17 +51,11 @@ begin
         end if;
       exception when others then
         -- زیرتراکنش همین رزرو برگشت خورد؛ ثبت خطا بیرون آن است تا پایدار بماند
-        -- و بقیه دسته ادامه یابد. یک ردیف برای هر رزرو، شمار شکست بالا می‌رود.
+        -- و بقیه دسته ادامه یابد.
         v_failed := v_failed + 1;
         insert into inv.reservation_expiry_failures
-          (run_id, reservation_id, error_sqlstate, message, failures, first_failed_at, occurred_at)
-        values (v_run, r.id, sqlstate, sqlerrm, 1, now(), now())
-        on conflict (reservation_id) do update
-           set run_id         = excluded.run_id,
-               error_sqlstate = excluded.error_sqlstate,
-               message        = excluded.message,
-               occurred_at    = excluded.occurred_at,
-               failures       = inv.reservation_expiry_failures.failures + 1;
+          (run_id, reservation_id, error_sqlstate, message)
+        values (v_run, r.id, sqlstate, sqlerrm);
       end;
     end loop;
 
@@ -80,8 +75,9 @@ begin
 end $$;
 
 comment on function inv.expire_reservations(uuid, timestamptz, integer) is
-  'outcome: ran | already_ran | failed؛ شکست هر رزرو جدا در یک ردیف upsert می‌شود (شمار شکست‌ها)، رزروهای سابقه‌دار آخر صف‌اند و بقیه دسته آزاد می‌شوند';
+  'outcome: ran | already_ran | failed؛ هر رزرو زیرتراکنش مستقل دارد، شکست‌ها در inv.reservation_expiry_failures ثبت و بقیه دسته آزاد می‌شوند';
 
+-- EXECUTE به‌طور پیش‌فرض به PUBLIC داده می‌شود؛ مجوز فقط برای اپ (D-19).
 revoke all on function inv.expire_reservations(uuid, timestamptz, integer) from public;
 grant execute on function inv.expire_reservations(uuid, timestamptz, integer) to fco_app;
 
@@ -150,3 +146,10 @@ end $$;
 
 comment on function sys.health_report(uuid) is
   'گزارش JSON رصد؛ شامل صف، نشست، Jobهای گیرکرده (job.stuck_after_minutes) و تلاش‌های تمام‌شده';
+
+alter table inv.reservation_expiry_failures
+  drop column if exists failures,
+  drop column if exists first_failed_at;
+
+comment on table inv.reservation_expiry_failures is
+  'رزروهایی که Job انقضا نتوانست آزاد کند؛ هر ردیف یک شکست با run_id و sqlstate (T-INV-07)';
