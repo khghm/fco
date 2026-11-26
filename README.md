@@ -111,7 +111,7 @@ GET /api/v1/products?q=FCO (request 21, E2E limit=20/min)
 429 | code=FCO-1007 | Retry-After present
 ```
 
-در پاسخ‌های API، `request_id` در body و header برابر است؛ هدرهای IP جعلی نیز در `TRUST_PROXY=false` سهمیه را دور نمی‌زنند. E2E از شبیه‌ساز S3rver استفاده می‌کند؛ اتصال به MinIO واقعی/Production هنوز جداگانه باید آزموده شود. دیتابیس توسعهٔ `fco` تغییر نمی‌کند. پنل مدیریت و خرید هنوز پیاده نشده‌اند؛ وضعیت کامل در `docs/Architecture-02/API_SPECIFICATION.md` آمده است.
+در پاسخ‌های API، `request_id` در body و header برابر است؛ هدرهای IP جعلی نیز در `TRUST_PROXY=false` سهمیه را دور نمی‌زنند. E2E از شبیه‌ساز S3rver استفاده می‌کند؛ اتصال به MinIO واقعی/Production هنوز جداگانه باید آزموده شود. Compose تصویر MinIO را روی `quay.io/minio/minio:RELEASE.2024-04-18T19-09-19Z` pin می‌کند، اما pull از Docker Hub در دسترس نبود و Quay برای این تگ `401` داد؛ بنابراین آزمون واقعی MinIO همچنان معوق است. دیتابیس توسعهٔ `fco` تغییر نمی‌کند. پنل مدیریت و خرید هنوز پیاده نشده‌اند؛ وضعیت کامل در `docs/Architecture-02/API_SPECIFICATION.md` آمده است.
 
 ## قواعد غیرقابل‌مذاکره
 
