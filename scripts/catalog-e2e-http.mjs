@@ -38,6 +38,45 @@ console.log(
   `PASS HTTP GET valid | status=200 slug=e2e-shirt price_rial=650000 available_qty=4 request_id=${validBody.meta.request_id}`,
 );
 
+const detailResponse = await getWithRetry(
+  `${baseUrl}/api/v1/products/e2e-shirt`,
+);
+const detailBody = await detailResponse.json();
+assert.equal(detailResponse.status, 200);
+assert.equal(detailBody.data.slug, "e2e-shirt");
+assert.equal(detailBody.data.description, "محصول نمونه برای آزمون endpoint");
+assert.deepEqual(detailBody.data.media, [
+  { key: "catalog/e2e-shirt/front.jpg", alt: "نمای جلو" },
+]);
+assert.deepEqual(detailBody.data.variants, [
+  {
+    sku: "E2E-SHIRT-001",
+    barcode: null,
+    price_rial: 650000,
+    compare_at_rial: 800000,
+    available_qty: 4,
+  },
+]);
+assert.equal(detailResponse.headers.get("x-request-id"), detailBody.meta.request_id);
+console.log(
+  `PASS HTTP GET product detail | status=200 slug=e2e-shirt media=1 variants=1 request_id=${detailBody.meta.request_id}`,
+);
+
+const detailPageResponse = await getWithRetry(
+  `${baseUrl}/products/e2e-shirt`,
+);
+const detailPage = await detailPageResponse.text();
+assert.equal(detailPageResponse.status, 200);
+assert.ok(detailPage.includes("پیراهن آزمایشی FCO"));
+assert.ok(detailPage.includes("E2E-SHIRT-001"));
+console.log("PASS HTTP GET product page | status=200 title and variant rendered");
+
+const missingPageResponse = await fetch(
+  `${baseUrl}/products/not-a-published-product`,
+);
+assert.equal(missingPageResponse.status, 404);
+console.log("PASS HTTP GET unpublished product page | status=404");
+
 const invalidResponse = await fetch(
   `${baseUrl}/api/v1/products?page_size=61`,
 );
@@ -50,4 +89,18 @@ assert.equal(
 );
 console.log(
   `PASS HTTP GET invalid | status=400 code=FCO-1001 request_id=${invalidBody.error.request_id}`,
+);
+
+const missingResponse = await fetch(
+  `${baseUrl}/api/v1/products/not-a-published-product`,
+);
+const missingBody = await missingResponse.json();
+assert.equal(missingResponse.status, 404);
+assert.equal(missingBody.error.code, "FCO-1004");
+assert.equal(
+  missingResponse.headers.get("x-request-id"),
+  missingBody.error.request_id,
+);
+console.log(
+  `PASS HTTP GET unpublished product | status=404 code=FCO-1004 request_id=${missingBody.error.request_id}`,
 );

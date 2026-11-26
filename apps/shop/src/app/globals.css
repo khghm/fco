@@ -181,6 +181,15 @@ a {
   font-size: 1rem;
 }
 
+.product-details h3 a {
+  text-decoration: none;
+}
+
+.product-details h3 a:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
 .product-brand,
 .product-price,
 .stock {
@@ -262,6 +271,63 @@ a {
   clip-path: inset(50%);
 }
 
+.product-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  gap: clamp(24px, 5vw, 64px);
+  padding-block: 36px 72px;
+}
+
+.product-art-large {
+  min-height: 440px;
+  border-radius: 16px;
+}
+
+.product-summary h1 {
+  margin: 12px 0 16px;
+  font-size: clamp(1.8rem, 4vw, 2.8rem);
+}
+
+.breadcrumbs {
+  display: flex;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.product-description {
+  line-height: 1.9;
+  white-space: pre-line;
+}
+
+.variant-list {
+  margin-top: 32px;
+}
+
+.variant-list h2 {
+  font-size: 1.1rem;
+}
+
+.variant-list ul {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.variant-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
 @media (max-width: 540px) {
   .storefront {
     width: min(100% - 28px, 1120px);
@@ -277,5 +343,13 @@ a {
 
   .product-art {
     min-height: 180px;
+  }
+
+  .product-page {
+    grid-template-columns: 1fr;
+  }
+
+  .product-art-large {
+    min-height: 280px;
   }
 }

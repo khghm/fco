@@ -12,6 +12,37 @@ export interface PublicProduct {
   in_stock: boolean;
 }
 
+export interface PublicProductReference {
+  slug: string;
+  title: string;
+}
+
+export interface PublicProductMedia {
+  key: string;
+  alt: string | null;
+}
+
+export interface PublicProductVariant {
+  sku: string;
+  barcode: string | null;
+  price_rial: number | null;
+  compare_at_rial: number | null;
+  available_qty: number;
+}
+
+export interface PublicProductDetail {
+  id: string;
+  slug: string;
+  title: string;
+  description: string | null;
+  attributes: Record<string, unknown>;
+  published_at: string;
+  brand: PublicProductReference | null;
+  category: PublicProductReference | null;
+  media: PublicProductMedia[];
+  variants: PublicProductVariant[];
+}
+
 export interface PublicCatalogQuery {
   query: string | null;
   categorySlug: string | null;
@@ -29,6 +60,7 @@ export interface PublicCatalogPage {
 
 export interface PublicCatalogRepository {
   searchProducts(query: PublicCatalogQuery): Promise<PublicCatalogPage>;
+  getProductBySlug(slug: string): Promise<PublicProductDetail | null>;
 }
 
 export class InvalidCatalogQueryError extends Error {
@@ -108,4 +140,11 @@ export function searchPublicCatalog(
   query: PublicCatalogQuery,
 ): Promise<PublicCatalogPage> {
   return repository.searchProducts(query);
+}
+
+export function getPublicProduct(
+  repository: PublicCatalogRepository,
+  slug: string,
+): Promise<PublicProductDetail | null> {
+  return repository.getProductBySlug(slug);
 }

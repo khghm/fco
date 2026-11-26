@@ -4,27 +4,13 @@ import {
   searchPublicCatalog,
 } from "@fco/application/catalog";
 import { createPostgresPublicCatalogRepository } from "@fco/infrastructure/catalog";
+import { formatPrice, persianNumber } from "../lib/catalog-presentation";
 
 export const dynamic = "force-dynamic";
 
 type HomeProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
-
-const persianNumber = new Intl.NumberFormat("fa-IR");
-
-function formatPrice(rial: number | null): string {
-  if (rial === null) {
-    return "قیمت ثبت نشده";
-  }
-
-  const amount = BigInt(rial);
-  if (amount % 10n !== 0n) {
-    return `${persianNumber.format(amount)} ریال`;
-  }
-
-  return `${persianNumber.format(amount / 10n)} تومان`;
-}
 
 function pageHref(
   page: number,
@@ -112,7 +98,9 @@ export default async function Home({ searchParams }: HomeProps) {
                   {product.brand_title && (
                     <p className="product-brand">{product.brand_title}</p>
                   )}
-                  <h3>{product.title}</h3>
+                  <h3>
+                    <Link href={`/products/${product.slug}`}>{product.title}</Link>
+                  </h3>
                   <p className="product-price">{formatPrice(product.price_rial)}</p>
                   <p className={product.in_stock ? "stock in-stock" : "stock"}>
                     {product.in_stock ? "موجود" : "ناموجود"}

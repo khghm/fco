@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   InvalidCatalogQueryError,
+  getPublicProduct,
   parsePublicCatalogQuery,
   searchPublicCatalog,
   type PublicCatalogRepository,
@@ -39,6 +40,7 @@ describe("searchPublicCatalog", () => {
     const result = { items: [], page: 1, page_size: 24, total: 0 };
     const repository: PublicCatalogRepository = {
       searchProducts: vi.fn().mockResolvedValue(result),
+      getProductBySlug: vi.fn().mockResolvedValue(null),
     };
 
     await expect(
@@ -51,5 +53,15 @@ describe("searchPublicCatalog", () => {
       }),
     ).resolves.toEqual(result);
     expect(repository.searchProducts).toHaveBeenCalledOnce();
+  });
+
+  it("delegates the product slug to the repository", async () => {
+    const repository: PublicCatalogRepository = {
+      searchProducts: vi.fn(),
+      getProductBySlug: vi.fn().mockResolvedValue(null),
+    };
+
+    await expect(getPublicProduct(repository, "e2e-shirt")).resolves.toBeNull();
+    expect(repository.getProductBySlug).toHaveBeenCalledWith("e2e-shirt");
   });
 });

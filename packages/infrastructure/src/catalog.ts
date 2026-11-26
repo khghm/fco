@@ -4,6 +4,7 @@ import type {
   PublicCatalogQuery,
   PublicCatalogRepository,
   PublicProduct,
+  PublicProductDetail,
 } from "@fco/application/catalog";
 
 interface ProductRow extends QueryResultRow {
@@ -19,6 +20,10 @@ interface ProductRow extends QueryResultRow {
   available_qty: number;
   in_stock: boolean;
   total_count: string;
+}
+
+interface ProductDetailRow extends QueryResultRow {
+  product: PublicProductDetail | null;
 }
 
 let pool: Pool | undefined;
@@ -66,6 +71,22 @@ function mapProduct(row: ProductRow): PublicProduct {
   };
 }
 
+function mapProductDetail(product: PublicProductDetail): PublicProductDetail {
+  return {
+    ...product,
+    variants: product.variants.map((variant) => ({
+      ...variant,
+      price_rial:
+        variant.price_rial === null ? null : safeInteger(variant.price_rial, "price_rial"),
+      compare_at_rial:
+        variant.compare_at_rial === null
+          ? null
+          : safeInteger(variant.compare_at_rial, "compare_at_rial"),
+      available_qty: safeInteger(variant.available_qty, "available_qty"),
+    })),
+  };
+}
+
 async function rollback(client: PoolClient): Promise<void> {
   await client.query("rollback");
 }
@@ -108,6 +129,38 @@ export function createPostgresPublicCatalogRepository(): PublicCatalogRepository
           page_size: query.pageSize,
           total: safeInteger(totalResult.rows[0]?.total_count ?? "0", "total_count"),
         };
+      } catch (error) {
+        if (transactionOpen) {
+          try {
+            await rollback(client);
+          } catch (rollbackError) {
+            throw new AggregateError([error, rollbackError], "Catalog transaction rollback failed.");
+          }
+        }
+        throw error;
+      } finally {
+        client.release();
+      }
+    },
+    async getProductBySlug(slug: string): Promise<PublicProductDetail | null> {
+      const client = await getPool().connect();
+      let transactionOpen = false;
+
+      try {
+        await client.query("begin isolation level repeatable read read only");
+        transactionOpen = true;
+        await client.query("set local role fco_app");
+
+        const result = await client.query<ProductDetailRow>(
+          "select cat.public_product($1, $2) as product",
+          [slug, "web"],
+        );
+
+        await client.query("commit");
+        transactionOpen = false;
+
+        const product = result.rows[0]?.product ?? null;
+        return product === null ? null : mapProductDetail(product);
       } catch (error) {
         if (transactionOpen) {
           try {

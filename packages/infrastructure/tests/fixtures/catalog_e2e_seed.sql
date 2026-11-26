@@ -20,6 +20,13 @@ insert into cat.variants (id, product_id, sku) values
   ('e4000000-0000-0000-0000-000000000001',
    'a4000000-0000-0000-0000-000000000001', 'E2E-SHIRT-001');
 
+insert into cat.product_media
+  (id, product_id, storage_key, alt_text, sort_order)
+values
+  ('f4000000-0000-0000-0000-000000000001',
+   'a4000000-0000-0000-0000-000000000001',
+   'catalog/e2e-shirt/front.jpg', 'نمای جلو', 1);
+
 insert into pricing.prices
   (variant_id, channel, amount_rial, compare_at_rial, effective_from)
 values

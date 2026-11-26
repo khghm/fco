@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { GET } from "./route";
+import { GET as getProduct } from "./[slug]/route";
 
 const databaseUrl = process.env.FCO_E2E_DATABASE_URL;
 
@@ -40,5 +41,43 @@ describe.skipIf(!databaseUrl)("GET /api/v1/products with PostgreSQL", () => {
 
     expect(response.status).toBe(400);
     expect(body.error.code).toBe("FCO-1001");
+  });
+
+  it("returns public product details, media metadata, current price, and availability", async () => {
+    const response = await getProduct(
+      new Request("http://localhost/api/v1/products/e2e-shirt", {
+        headers: { "x-request-id": "catalog-detail-e2e-123" },
+      }),
+      { params: Promise.resolve({ slug: "e2e-shirt" }) },
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-request-id")).toBe("catalog-detail-e2e-123");
+    expect(body.meta.request_id).toBe("catalog-detail-e2e-123");
+    expect(body.data).toMatchObject({
+      slug: "e2e-shirt",
+      description: "محصول نمونه برای آزمون endpoint",
+      media: [{ key: "catalog/e2e-shirt/front.jpg", alt: "نمای جلو" }],
+      variants: [
+        {
+          sku: "E2E-SHIRT-001",
+          price_rial: 650000,
+          compare_at_rial: 800000,
+          available_qty: 4,
+        },
+      ],
+    });
+  });
+
+  it("does not expose missing or unpublished products", async () => {
+    const response = await getProduct(
+      new Request("http://localhost/api/v1/products/unknown-product"),
+      { params: Promise.resolve({ slug: "unknown-product" }) },
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(body.error.code).toBe("FCO-1004");
   });
 });

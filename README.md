@@ -71,7 +71,7 @@ docker compose -f infra/compose/docker-compose.yml ps
 
 ## وضعیت اتصال کاتالوگ
 
-آزمون بازتولیدپذیر در [`catalog-e2e.sh`](scripts/catalog-e2e.sh) دیتابیس تازه‌ای با نام یکتای تولیدشده می‌سازد، ۱۹ Migration را اعمال می‌کند، [`catalog_e2e_seed.sql`](packages/infrastructure/tests/fixtures/catalog_e2e_seed.sql) را اجرا می‌کند، lint/typecheck/test/build را می‌سنجد و سپس سرور production را روی loopback با پورت آزاد بالا می‌آورد. اسکریپت هیچ دیتابیسی را حذف یا بازنویسی نمی‌کند؛ نام دیتابیس را چاپ می‌کند و آن را برای بررسی نگه می‌دارد.
+آزمون بازتولیدپذیر در [`catalog-e2e.sh`](scripts/catalog-e2e.sh) دیتابیس تازه‌ای با نام یکتای تولیدشده می‌سازد، ۱۹ Migration را اعمال می‌کند، [`catalog_e2e_seed.sql`](packages/infrastructure/tests/fixtures/catalog_e2e_seed.sql) را اجرا می‌کند، lint/typecheck/test/build را می‌سنجد و سپس سرور production را روی loopback با پورت آزاد بالا می‌آورد. آزمون HTTP مسیر فهرست، جزئیات محصول، ورودی نامعتبر و محصول منتشرنشده را پوشش می‌دهد. اسکریپت هیچ دیتابیسی را حذف یا بازنویسی نمی‌کند؛ نام دیتابیس را چاپ می‌کند و آن را برای بررسی نگه می‌دارد.
 
 از ریشهٔ مخزن (با Git Bash در ویندوز) اجرا کنید:
 
@@ -80,17 +80,29 @@ DATABASE_URL=postgresql://fco:fco_local_dev_only@localhost:5432/fco \
   bash scripts/catalog-e2e.sh
 ```
 
-job مستقل `Storefront catalog HTTP E2E` در [ci.yml](.github/workflows/ci.yml) با PostgreSQL 16 در GitHub Actions اجرا شد. **وضعیت: E2E محلی سبز؛ هر دو job یعنی `ci` و `Storefront catalog HTTP E2E` در اجرای [GitHub Actions #1](https://github.com/khghm/fco/actions/runs/45830968091) برای commit `d9c4e41` سبز شدند.** اجرای محلی موفق در دیتابیسِ خودکارنام‌گذاری‌شدهٔ `fco_catalog_e2e_20261126131901_1641` همهٔ ۱۹ Migration، ۱۳ تست، lint، typecheck و build هر دو اپ را گذراند؛ هیچ آزمون یا seedای به این نام وابسته نیست:
+job مستقل `Storefront catalog HTTP E2E` در [ci.yml](.github/workflows/ci.yml) با PostgreSQL 16 در GitHub Actions تعریف شده است. پیش از برش جزئیات محصول، هر دو job برای commit `3d53dca` سبز شدند ([اجرای #2](https://github.com/khghm/fco/actions/runs/45832057113))؛ این تغییرات هنوز push نشده‌اند و اجرای CI آن‌ها معوق است. آخرین اجرای محلی در دیتابیسِ خودکارنام‌گذاری‌شدهٔ `fco_catalog_e2e_20261126135659_1834`، ۱۹ Migration، ۲۰ تست، lint، typecheck و build هر دو اپ را گذراند؛ هیچ آزمون یا seedای به نام دیتابیس وابسته نیست:
 
 ```text
 GET /api/v1/products?q=FCO
 200 | slug=e2e-shirt | price_rial=650000 | available_qty=4 | in_stock=true
 
+GET /api/v1/products/e2e-shirt
+200 | media=1 | variants=1
+
+GET /products/e2e-shirt
+200 | title and variant rendered
+
 GET /api/v1/products?page_size=61
 400 | code=FCO-1001
+
+GET /api/v1/products/not-a-published-product
+404 | code=FCO-1004
+
+GET /products/not-a-published-product
+404
 ```
 
-در هر دو پاسخ، `request_id` در body و header برابر بود. دیتابیس توسعهٔ `fco` تغییر نکرد. صفحهٔ جزئیات، رسانه و سایر محدودیت‌های برش در `docs/Architecture-02/API_SPECIFICATION.md` آمده‌اند.
+در چهار پاسخ API، `request_id` در body و header برابر است. دیتابیس توسعهٔ `fco` تغییر نمی‌کند. نمایش فایل تصویر از S3/MinIO هنوز پیاده نشده است؛ قرارداد و سایر محدودیت‌ها در `docs/Architecture-02/API_SPECIFICATION.md` آمده‌اند.
 
 ## قواعد غیرقابل‌مذاکره
 
