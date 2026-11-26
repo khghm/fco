@@ -71,14 +71,14 @@ docker compose -f infra/compose/docker-compose.yml ps
 
 ## وضعیت اتصال کاتالوگ
 
-در ۲۰۲۶-۱۱-۲۶، دیتابیس جداگانهٔ `fco_catalog_e2e_20261126` با ۱۹ Migration موجود ساخته و با یک محصول آزمایشی seed شد؛ دیتابیس توسعهٔ `fco` دست‌نخورده ماند. آزمون opt-in در [`route.integration.test.ts`](apps/shop/src/app/api/v1/products/route.integration.test.ts) مستقیماً handler را با PostgreSQL واقعی صدا می‌زند و پاسخ موفق (قیمت ۶۵۰٬۰۰۰ ریال، موجودی قابل‌فروش ۴) و خطای ورودی `400 / FCO-1001` را می‌سنجد:
+در ۲۰۲۶-۱۱-۲۶، دیتابیس جداگانهٔ `fco_catalog_e2e_20261126` با ۱۹ Migration موجود ساخته و با یک محصول آزمایشی seed شد؛ دیتابیس توسعهٔ `fco` دست‌نخورده ماند. آزمون opt-in در [`route.integration.test.ts`](apps/shop/src/app/api/v1/products/route.integration.test.ts) مستقیماً handler را با PostgreSQL واقعی صدا می‌زند:
 
 ```powershell
 $env:FCO_E2E_DATABASE_URL = "<connection string for the isolated E2E database>"
 npm test
 ```
 
-آزمون handler با اتصال واقعی سبز است؛ بررسی HTTP از طریق سرور Next.js هنوز انجام نشده، چون محیط در تلاش برای listen روی loopback با `EACCES` پاسخ داد. جزئیات محصول، رسانه و سایر محدودیت‌های برش در `docs/Architecture-02/API_SPECIFICATION.md` ثبت شده‌اند.
+**آزمون واقعی HTTP:** سرور production با bind صریح `127.0.0.1` روی پورت بالای `45123` اجرا شد. `GET /api/v1/products?q=FCO` پاسخ `200` و محصول `e2e-shirt` با `price_rial=650000`، `available_qty=4` و `in_stock=true` داد؛ `GET /api/v1/products?page_size=61` پاسخ `400 / FCO-1001` داد. هر دو پاسخ `request_id` داشتند. جزئیات محصول، رسانه و سایر محدودیت‌های برش در `docs/Architecture-02/API_SPECIFICATION.md` ثبت شده‌اند.
 
 ## قواعد غیرقابل‌مذاکره
 
