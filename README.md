@@ -80,7 +80,7 @@ DATABASE_URL=postgresql://fco:fco_local_dev_only@localhost:5432/fco \
   bash scripts/catalog-e2e.sh
 ```
 
-هر دو job (`ci` و `Storefront catalog HTTP E2E`) برای این برش روی commit `27ee1fa` در GitHub Actions #5 موفق شدند: [نتیجهٔ اجرا](https://github.com/khghm/fco/actions/runs/45842656947). اجرای محلی روی دیتابیس خودکارنام‌گذاری‌شدهٔ `fco_catalog_e2e_20261126143850_1796` نیز ۱۹ Migration، ۲۴ تست، lint، typecheck و build هر دو اپ را گذراند؛ آزمون HTTP موارد زیر را تأیید کرد:
+هر دو job (`ci` و `Storefront catalog HTTP E2E`) برای این برش روی commit `27ee1fa` در GitHub Actions #5 موفق شدند: [نتیجهٔ اجرا](https://github.com/khghm/fco/actions/runs/45842656947). پس از pin کردن Compose، هر دو job در CI #7 روی `44e21f3` نیز موفق شدند: [نتیجهٔ اجرا](https://github.com/khghm/fco/actions/runs/45844360646). اجرای محلی روی دیتابیس خودکارنام‌گذاری‌شدهٔ `fco_catalog_e2e_20261126143850_1796` نیز ۱۹ Migration، ۲۴ تست، lint، typecheck و build هر دو اپ را گذراند؛ آزمون HTTP موارد زیر را تأیید کرد:
 
 ```text
 GET /api/v1/products?q=FCO
