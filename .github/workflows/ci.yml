@@ -27,7 +27,6 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-
     env:
       PGHOST: 127.0.0.1
       PGPORT: "5432"
@@ -92,6 +91,15 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
 
     env:
       PGHOST: 127.0.0.1
@@ -102,6 +110,7 @@ jobs:
       POSTGRES_DB: fco
       PSQL: psql
       DATABASE_URL: postgresql://fco:fco@127.0.0.1:5432/fco
+      REDIS_URL: redis://127.0.0.1:6379
 
     steps:
       - uses: actions/checkout@v4
@@ -117,10 +126,6 @@ jobs:
 
       - name: Install Node workspaces
         run: npm ci
-
-      - name: Start Redis for E2E
-        run: |
-          docker run -d --name fco-e2e-redis -p 6379:6379 redis:7-alpine
 
       - name: Migrate, seed, build and verify storefront HTTP, media and rate limit
         run: bash scripts/catalog-e2e.sh

@@ -2,8 +2,8 @@
 
 پلتفرم یکپارچه تجارت و مدیریت کسب‌وکار پوشاک — Self-hosted · فارسی/RTL · Production-grade.
 
-> **وضعیت پروژه:** فاز ۰ طراحی بسته شده (G0) و BR-1 با شاهد M1 پذیرفته شده است. BR-2 در حال اجراست: کاتالوگ عمومی و UI/API پنل محصول، قیمت و MFA روی commit `cd71c8e` در E2E محلی و GitHub Actions سبز هستند؛ اتصال MinIO واقعی و تعویض/ابطال عامل MFA همچنان بازند.
-> سامانه هنوز برای فروش واقعی کامل نیست: برخی کنترل‌های عملیاتی BR-2 بازند و BR-3 تا BR-5 پیاده نشده‌اند. وضعیت هر گام با شاهد در `docs/Engineering-04/IMPLEMENTATION_START_PLAN.md` ثبت می‌شود.
+> **وضعیت پروژه:** فاز ۰ طراحی بسته شده (G0) و BR-1 با شاهد M1 پذیرفته شده است. BR-2 در حال اجراست: کاتالوگ عمومی و UI/API پنل محصول، قیمت و MFA روی commit `cd71c8e` در E2E محلی و GitHub Actions سبز هستند؛ آزمون محلی MinIO OSS واقعی و گردش تعویض/ابطال MFA نیز سبز است. نخستین برش BR-3 برای سبد مهمان/حساب و ورود OTP آزمایشی در حال پیاده‌سازی و E2E محلی است؛ تغییرات تازه هنوز به CI/push نرفته‌اند.
+> سامانه هنوز برای فروش واقعی کامل نیست: checkout، سفارش، پرداخت، و provider پیامک Production پیاده نشده‌اند. وضعیت هر گام با شاهد در `docs/Engineering-04/IMPLEMENTATION_START_PLAN.md` ثبت می‌شود.
 
 ## مستندات
 
@@ -71,7 +71,7 @@ docker compose -f infra/compose/docker-compose.yml ps
 
 ## وضعیت اتصال کاتالوگ
 
-آزمون بازتولیدپذیر در [`catalog-e2e.sh`](scripts/catalog-e2e.sh) دیتابیس تازه‌ای با نام یکتای تولیدشده می‌سازد، همهٔ Migrationهای موجود (اکنون `0001..0021`) را اعمال می‌کند، [`catalog_e2e_seed.sql`](packages/infrastructure/tests/fixtures/catalog_e2e_seed.sql) را اجرا می‌کند، lint/typecheck/test/build را می‌سنجد و سرور production را روی loopback با پورت آزاد بالا می‌آورد. Redis باید در دسترس باشد؛ S3rver با bucket و تصویر fixture موقت توسط آزمون اجرا می‌شود. هیچ دیتابیس یا دادهٔ موجودی حذف/بازنویسی نمی‌شود و دیتابیس E2E برای بررسی نگه داشته می‌شود.
+آزمون بازتولیدپذیر در [`catalog-e2e.sh`](scripts/catalog-e2e.sh) دیتابیس تازه‌ای با نام یکتای تولیدشده می‌سازد، همهٔ Migrationهای موجود (اکنون `0001..0022`) را اعمال می‌کند، [`catalog_e2e_seed.sql`](packages/infrastructure/tests/fixtures/catalog_e2e_seed.sql) را اجرا می‌کند، lint/typecheck/test/build را می‌سنجد و سرور production را روی loopback با پورت آزاد بالا می‌آورد. Redis باید در دسترس باشد؛ S3rver با bucket و تصویر fixture موقت توسط آزمون اجرا می‌شود. هیچ دیتابیس یا دادهٔ موجودی حذف/بازنویسی نمی‌شود و دیتابیس E2E برای بررسی نگه داشته می‌شود.
 
 از ریشهٔ مخزن (با Git Bash در ویندوز) اجرا کنید:
 
@@ -111,15 +111,33 @@ GET /api/v1/products?q=FCO (request 21, E2E limit=20/min)
 429 | code=FCO-1007 | Retry-After present
 ```
 
-در پاسخ‌های API، `request_id` در body و header برابر است؛ هدرهای IP جعلی نیز در `TRUST_PROXY=false` سهمیه را دور نمی‌زنند. E2E از شبیه‌ساز S3rver استفاده می‌کند؛ اتصال به MinIO واقعی/Production هنوز جداگانه باید آزموده شود. Compose تصویر MinIO را روی `quay.io/minio/minio:RELEASE.2024-04-18T19-09-19Z` pin می‌کند، اما pull از Docker Hub در دسترس نبود و Quay برای این تگ `401` داد؛ بنابراین آزمون واقعی MinIO همچنان معوق است. دیتابیس توسعهٔ `fco` تغییر نمی‌کند.
+در پاسخ‌های API، `request_id` در body و header برابر است؛ هدرهای IP جعلی نیز در `TRUST_PROXY=false` سهمیه را دور نمی‌زنند. E2E پایه با S3rver اجرا می‌شود. افزون بر آن، اجرای محلی HTTP روی MinIO OSS که از سورس ساخته شد، ساخت bucket و بارگذاری PNG، دریافت Presigned URL، بهینه‌سازی `/_next/image` و صفحهٔ جزئیات را با پاسخ `200` تأیید کرد؛ دیتابیس آزمون `fco_catalog_minio_e2e_20261127121347` بود و دیتابیس توسعهٔ `fco` تغییر نکرد. تگ MinIO در Compose همچنان از registry قابل دریافت نیست؛ برای آزمون کامل اسکریپت با MinIO در loopback:
+
+```bash
+FCO_E2E_EXTERNAL_S3=true \
+S3_ENDPOINT=http://127.0.0.1:9000 \
+S3_ACCESS_KEY=<minio-access-key> \
+S3_SECRET_KEY=<minio-secret-key> \
+S3_BUCKET=fco-catalog-e2e \
+DATABASE_URL=postgresql://fco:<password>@localhost:5432/fco \
+  bash scripts/catalog-e2e.sh
+```
+
+آزمون fixture عمداً فقط endpointهای loopback را می‌پذیرد.
 
 ### پنل مدیریت محصول، قیمت و امنیت حساب
 
 صفحهٔ `/admin/products` فهرست، ایجاد و ویرایش نسخه‌دار محصول، ایجاد تنوع، ثبت قیمت تازه و تاریخچهٔ تغییر قیمت را ارائه می‌کند؛ `/admin/settings/security` وضعیت MFA را نشان می‌دهد و `/mfa/setup` راه‌اندازی QR/کلید دستی، تأیید TOTP و نمایش یک‌بارهٔ ۱۰ کد بازیابی با امکان کپی/دانلود را دارد. Login از TOTP یا کد بازیابی یک‌بارمصرف پشتیبانی می‌کند. مسیرهای حساس با نشست PostgreSQL، middleware، کنترل مجوز use-case و Audit دارای actor و `request_id` محافظت می‌شوند. ورود ادمین به ۵ تلاش در ۱۵ دقیقه محدود است و عبور از سقف `429 / FCO-1007` و `Retry-After` می‌دهد؛ Redis شمارندهٔ مشترک است و در قطعی Redis، fallback حافظه‌ای فقط همان نمونه را پوشش می‌دهد.
 
-تأیید محلی تازهٔ HTTP E2E روی PostgreSQL واقعی با ۲۱ Migration و Redis سبز است: صفحات محصول/امنیت/setup، CRUD محصول، تنوع، قیمت نسخه‌دار و تاریخچه، MFA enrollment/TOTP، recovery code یک‌بارمصرف، رد RBAC، rate limit، Audit و خروج بررسی شدند. دیتابیس `fco_admin_e2e_20261127071614_1387` برای بررسی باقی است. روی commit `cd71c8e`، [GitHub Actions run 45959296552](https://github.com/khghm/fco/actions/runs/45959296552) کامل موفق شد: CI، Storefront catalog HTTP E2E و Admin API HTTP E2E سبز شدند. چرخهٔ مجاز تعویض/ابطال عامل MFA در صورت گم‌شدن دستگاه هنوز پیاده نشده است.
+تأیید محلی HTTP E2E روی PostgreSQL واقعی با ۲۱ Migration و Redis سبز است: صفحات محصول/امنیت/setup، CRUD محصول، تنوع، قیمت نسخه‌دار و تاریخچه، MFA enrollment/TOTP، recovery code یک‌بارمصرف، رد RBAC، rate limit، Audit و خروج بررسی شدند. آزمون تکمیلی reset با هر دو مدرک TOTP و recovery code نیز موفق شد؛ رمز نادرست reset را رد کرد و نشست را نگه داشت، سپس موفقیت همهٔ نشست‌ها و عامل‌های قبلی را باطل و setup مجدد را اجباری کرد. شناسهٔ دیتابیس آزمون نهایی `fco_admin_mfa_reset_final_20261127122354` است. روی commit `cd71c8e`، [GitHub Actions run 45959296552](https://github.com/khghm/fco/actions/runs/45959296552) کامل موفق شد؛ تغییرات تازه هنوز در CI اجرا نشده‌اند.
 
-تأیید رسانهٔ واقعی MinIO همچنان معوق است: pull تگ pin‌شده از Quay با `401` و pull تصویر رسمی از Docker Hub با خطای دسترسی رد شد. E2E رسانهٔ موجود از S3rver استفاده می‌کند و معادل اثبات MinIO واقعی نیست؛ دیتابیس توسعهٔ `fco` تغییر نمی‌کند. جزئیات قرارداد، endpointها و محدودیت‌ها در [`API_SPECIFICATION.md`](docs/Architecture-02/API_SPECIFICATION.md) آمده است.
+MinIO محلی با باینری OSS ساخته‌شده از سورس آزموده شد؛ این شاهد، جای آزمون روی سرویس/پیکربندی Production یا اجرای CI را نمی‌گیرد. جزئیات قرارداد، endpointها و محدودیت‌ها در [`API_SPECIFICATION.md`](docs/Architecture-02/API_SPECIFICATION.md) آمده است.
+
+### برش آغازین BR-3: سبد و ورود مشتری
+
+`GET /api/v1/cart` و `POST /api/v1/cart/items` سبد مهمان Redis را با کوکی UUID تصادفی `__Host-fco_cart_sid` (`HttpOnly; Secure; SameSite=Lax`) مدیریت می‌کنند؛ دادهٔ Redis فقط شناسهٔ تنوع و تعداد است و قیمت هر بار از PostgreSQL خوانده می‌شود. TTL هفت‌روزه با مشاهده/افزودن تمدید می‌شود. ورود از `POST /api/v1/auth/otp/request` و `/verify` است؛ در توسعه/E2E کد با `MockSmsProvider` فقط در `sys.otp_spool` ذخیره می‌شود و فعال‌سازی آن نیازمند `auth.otp.spool_enabled=true` است. در Production که provider پیامک واقعی هنوز انتخاب/پیاده نشده، درخواست OTP با `503 / FCO-1018` رد می‌شود؛ Mock جایگزین Production نیست. ورود فعلی فقط برای حساب مشتری فعال موجود است و ثبت‌نام مشتری در این برش نیست.
+
+پس از OTP معتبر، ایجاد نشست مشتری و ادغام سبد مهمان در سبد PostgreSQL حساب در یک تراکنش انجام می‌شود؛ منبع ادغام یکتا است تا retry مقدارها را دوباره اضافه نکند. کلید Redis فقط پس از commit دیتابیس پاک می‌شود. اگر پاک‌سازی Redis عقب بماند، `GET /api/v1/cart` ادغام‌های معوق را با قفل فعال به‌صورت صریح گزارش می‌کند و پس از رفع قفل پاک‌سازی را تکرار می‌کند. `scripts/cart-auth-e2e-http.mjs` تست HTTP واقعی را در job کاتالوگ اجرا می‌کند: دو محصول مهمان، قیمت‌های سروری با ورودی قیمت جعلی، OTP اشتباه/درست، انتقال اقلام، حذف Redis، retry بدون تکثیر و بازیابی پاک‌سازی معوق. E2E محلی روی دیتابیس تازهٔ `fco_cart_recovery_e2e_20261127131233` با ۲۲ Migration و Redis سبز شد؛ `npm test` (۵۰ پاس/۴ skip آگاهانه)، lint، typecheck و build فروشگاه نیز سبز هستند. CI این تغییر هنوز اجرا نشده است.
 
 برای اجرای دوبارهٔ همین برش از Git Bash روی Windows یا Bash روی Linux، `DATABASE_URL` را به دیتابیس مدیریتی PostgreSQL بدهید. اسکریپت `scripts/admin-api-e2e.sh` یک دیتابیس یکتا می‌سازد، Migrationها و fixtureهای موقت را اعمال می‌کند و دیتابیس را برای بررسی نگه می‌دارد:
 

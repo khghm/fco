@@ -1,4 +1,4 @@
-import { createCipheriv, randomBytes } from "node:crypto";
+import { createCipheriv, randomBytes, randomUUID } from "node:crypto";
 import argon2 from "argon2";
 import { Client } from "pg";
 
@@ -13,7 +13,7 @@ const adminId = "92000000-0000-4000-8000-000000000001";
 const operatorId = "92000000-0000-4000-8000-000000000002";
 const brandId = "92000000-0000-4000-8000-000000000003";
 const categoryId = "92000000-0000-4000-8000-000000000004";
-const setupStaffId = "92000000-0000-4000-8000-000000000005";
+const setupStaffId = randomUUID();
 const totpSecret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
 const client = new Client({ connectionString: databaseUrl });
 

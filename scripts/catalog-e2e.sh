@@ -53,22 +53,33 @@ export DATABASE_URL="$(
 export DATABASE_SSL="${DATABASE_SSL:-false}"
 export FCO_E2E_DATABASE_URL="$DATABASE_URL"
 export REDIS_URL="${FCO_E2E_REDIS_URL:-redis://127.0.0.1:6379}"
-S3_PORT="${FCO_E2E_S3_PORT:-$(
-  node -e '
-    const server = require("node:net").createServer();
-    server.listen(0, "127.0.0.1", () => {
-      process.stdout.write(String(server.address().port));
-      server.close();
-    });
-  '
-)}"
-[[ "$S3_PORT" =~ ^[0-9]+$ ]] || die "انتخاب پورت S3 E2E ناموفق بود"
-export S3_E2E_PORT="$S3_PORT"
-export S3_ENDPOINT="http://127.0.0.1:$S3_PORT"
-export S3_BUCKET="${FCO_E2E_S3_BUCKET:-fco-catalog-e2e}"
-export S3_REGION="${FCO_E2E_S3_REGION:-us-east-1}"
-export S3_ACCESS_KEY=S3RVER
-export S3_SECRET_KEY=S3RVER
+export SESSION_TOKEN_PEPPER="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(48).toString("base64url"))')"
+export OTP_CODE_PEPPER="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(48).toString("base64url"))')"
+export FCO_SMS_PROVIDER=mock
+export FCO_E2E_MODE=true
+if [[ "${FCO_E2E_EXTERNAL_S3:-false}" = "true" ]]; then
+  [[ -n "${S3_ENDPOINT:-}" && -n "${S3_ACCESS_KEY:-}" && -n "${S3_SECRET_KEY:-}" ]] \
+    || die "S3_ENDPOINT، S3_ACCESS_KEY و S3_SECRET_KEY برای S3 خارجی الزامی‌اند"
+  export S3_BUCKET="${S3_BUCKET:-fco-catalog-e2e}"
+  export S3_REGION="${S3_REGION:-us-east-1}"
+else
+  S3_PORT="${FCO_E2E_S3_PORT:-$(
+    node -e '
+      const server = require("node:net").createServer();
+      server.listen(0, "127.0.0.1", () => {
+        process.stdout.write(String(server.address().port));
+        server.close();
+      });
+    '
+  )}"
+  [[ "$S3_PORT" =~ ^[0-9]+$ ]] || die "انتخاب پورت S3 E2E ناموفق بود"
+  export S3_E2E_PORT="$S3_PORT"
+  export S3_ENDPOINT="http://127.0.0.1:$S3_PORT"
+  export S3_BUCKET="${FCO_E2E_S3_BUCKET:-fco-catalog-e2e}"
+  export S3_REGION="${FCO_E2E_S3_REGION:-us-east-1}"
+  export S3_ACCESS_KEY=S3RVER
+  export S3_SECRET_KEY=S3RVER
+fi
 export CATALOG_RATE_LIMIT_POINTS=20
 export TRUST_PROXY=false
 
@@ -122,19 +133,21 @@ cleanup() {
 }
 trap cleanup EXIT
 
-node "$ROOT/scripts/catalog-s3-e2e-server.mjs" >"$S3_LOG" 2>&1 &
-S3_PID=$!
-for _ in $(seq 1 50); do
-  if node -e '
-    const socket = require("node:net").connect(Number(process.env.S3_E2E_PORT), "127.0.0.1");
-    socket.on("connect", () => { socket.end(); process.exit(0); });
-    socket.on("error", () => process.exit(1));
-  '; then
-    break
-  fi
-  sleep 0.2
-done
-kill -0 "$S3_PID" 2>/dev/null || die "S3 E2E server did not start"
+if [[ "${FCO_E2E_EXTERNAL_S3:-false}" != "true" ]]; then
+  node "$ROOT/scripts/catalog-s3-e2e-server.mjs" >"$S3_LOG" 2>&1 &
+  S3_PID=$!
+  for _ in $(seq 1 50); do
+    if node -e '
+      const socket = require("node:net").connect(Number(process.env.S3_E2E_PORT), "127.0.0.1");
+      socket.on("connect", () => { socket.end(); process.exit(0); });
+      socket.on("error", () => process.exit(1));
+    '; then
+      break
+    fi
+    sleep 0.2
+  done
+  kill -0 "$S3_PID" 2>/dev/null || die "S3 E2E server did not start"
+fi
 node "$ROOT/scripts/catalog-media-e2e-setup.mjs"
 
 (
@@ -146,3 +159,4 @@ node "$ROOT/scripts/catalog-media-e2e-setup.mjs"
 SERVER_PID=$!
 export FCO_E2E_BASE_URL="http://127.0.0.1:$PORT"
 node "$ROOT/scripts/catalog-e2e-http.mjs"
+node "$ROOT/scripts/cart-auth-e2e-http.mjs"

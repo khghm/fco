@@ -1,6 +1,6 @@
-import { createHash } from "node:crypto";
 import type { PoolClient, QueryResultRow } from "pg";
 import { getPostgresPool } from "./postgres";
+import { hashSessionToken } from "./session-token";
 
 export const STAFF_SESSION_COOKIE = "__Host-fco_sid";
 export const STAFF_MFA_SETUP_COOKIE = "__Host-fco_mfa_setup";
@@ -12,23 +12,8 @@ export interface StaffSession {
 
 interface SessionRow extends QueryResultRow, StaffSession {}
 
-function sessionPepper(): string {
-  const pepper = process.env.SESSION_TOKEN_PEPPER;
-  if (!pepper || Buffer.byteLength(pepper, "utf8") < 32) {
-    throw new Error("SESSION_TOKEN_PEPPER must contain at least 32 bytes.");
-  }
-  return pepper;
-}
-
 export function hashStaffSessionToken(token: string): Buffer {
-  if (!/^[A-Za-z0-9_-]{43}$/.test(token)) {
-    throw new Error("Staff session token has an invalid format.");
-  }
-
-  return createHash("sha256")
-    .update(token, "utf8")
-    .update(sessionPepper(), "utf8")
-    .digest();
+  return hashSessionToken(token);
 }
 
 function sqlState(error: unknown): string | undefined {

@@ -510,6 +510,163 @@ export async function confirmStaffMfaEnrollment(input: {
   }
 }
 
+export async function resetStaffMfa(input: {
+  userId: string;
+  password: string;
+  totp: string | null;
+  recoveryCode: string | null;
+  requestId: string;
+}): Promise<
+  | { kind: "reset" }
+  | { kind: "invalid_credentials" }
+  | { kind: "mfa_required" }
+  | { kind: "account_unavailable" }
+  | { kind: "password_change_required" }
+> {
+  const client = await getPostgresPool("fco-admin").connect();
+  try {
+    await client.query("begin");
+    await client.query("set local role fco_app");
+    const accountResult = await client.query<StaffLoginRow>(
+      `select u.id, u.password_hash, u.status, u.must_change_password,
+              (u.mfa_required or exists (
+                select 1 from iam.user_roles ur
+                join iam.roles r on r.id = ur.role_id
+                where ur.user_id = u.id and r.requires_mfa
+              )) as mfa_required
+         from iam.users u
+        where u.id = $1 and u.archived_at is null
+        for update`,
+      [input.userId],
+    );
+    const account = accountResult.rows[0];
+    if (!account || account.status !== "active") {
+      await client.query("rollback");
+      return { kind: "account_unavailable" };
+    }
+
+    if (!(await verifyStaffPassword(account.password_hash, input.password))) {
+      await markLoginFailure(client, input.userId);
+      await client.query("commit");
+      return { kind: "invalid_credentials" };
+    }
+    if (account.must_change_password) {
+      await client.query("rollback");
+      return { kind: "password_change_required" };
+    }
+
+    const factorResult = await client.query<MfaFactorRow>(
+      `select id, secret_ciphertext, last_used_at
+         from iam.mfa_factors
+        where user_id = $1 and kind = 'totp'
+          and confirmed_at is not null and disabled_at is null
+        limit 1
+        for update`,
+      [input.userId],
+    );
+    const factor = factorResult.rows[0];
+    let verifiedFactorId: string | undefined;
+    let proofType: "totp" | "recovery_code" | undefined;
+
+    if (factor && input.totp !== null) {
+      const step = matchingTotpStep(
+        decryptMfaSecret(factor.secret_ciphertext),
+        input.totp,
+      );
+      const stepTimestamp =
+        step === null ? null : new Date(step * TOTP_STEP_SECONDS * 1000);
+      if (
+        stepTimestamp !== null &&
+        (factor.last_used_at === null || stepTimestamp > factor.last_used_at)
+      ) {
+        const marked = await client.query<{ id: string }>(
+          `update iam.mfa_factors
+              set last_used_at = $2
+            where id = $1 and (last_used_at is null or last_used_at < $2)
+          returning id`,
+          [factor.id, stepTimestamp],
+        );
+        if (marked.rows[0]) {
+          verifiedFactorId = factor.id;
+          proofType = "totp";
+        }
+      }
+    } else if (input.recoveryCode !== null) {
+      const codeHash = hashMfaRecoveryCode(input.recoveryCode);
+      if (codeHash) {
+        const used = await client.query<{ id: string }>(
+          `update iam.mfa_factors
+              set disabled_at = now()
+            where id = (
+              select id from iam.mfa_factors
+               where user_id = $1 and kind = 'recovery_code'
+                 and secret_ciphertext = $2
+                 and confirmed_at is not null and disabled_at is null
+               order by created_at
+               limit 1
+               for update
+            )
+          returning id`,
+          [input.userId, codeHash],
+        );
+        if (used.rows[0]) {
+          verifiedFactorId = used.rows[0].id;
+          proofType = "recovery_code";
+          await client.query(
+            `select sys.audit_write(
+               $1::uuid, 'auth.mfa_recovery_used', 'mfa_factors', $2::uuid,
+               null, jsonb_build_object('single_use', true, 'purpose', 'mfa_reset'),
+               null, null, $3::text
+             )`,
+            [input.userId, verifiedFactorId, input.requestId],
+          );
+        }
+      }
+    }
+
+    if (!verifiedFactorId || !proofType) {
+      await markLoginFailure(client, input.userId);
+      await client.query("commit");
+      return { kind: "mfa_required" };
+    }
+
+    await client.query(
+      `update iam.mfa_factors set disabled_at = now()
+        where user_id = $1 and disabled_at is null`,
+      [input.userId],
+    );
+    await client.query(
+      "update iam.users set mfa_required = true where id = $1",
+      [input.userId],
+    );
+    await client.query("select iam.register_login_success($1::uuid)", [input.userId]);
+    await client.query(
+      "select iam.revoke_all_sessions($1::uuid, 'mfa_reset')",
+      [input.userId],
+    );
+    await client.query(
+      `select sys.audit_write(
+         $1::uuid, 'auth.mfa_reset', 'mfa_factors', $2::uuid,
+         jsonb_build_object('proof_type', $3::text),
+         jsonb_build_object('factors_revoked', true, 'reauthenticated', true),
+         null, null, $4::text
+       )`,
+      [input.userId, verifiedFactorId, proofType, input.requestId],
+    );
+    await client.query("commit");
+    return { kind: "reset" };
+  } catch (error) {
+    try {
+      await client.query("rollback");
+    } catch (rollbackError) {
+      throw new AggregateError([error, rollbackError], "MFA reset transaction rollback failed.");
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 function sqlState(error: unknown): string | undefined {
   if (
     typeof error === "object" &&

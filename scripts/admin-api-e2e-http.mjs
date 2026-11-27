@@ -89,6 +89,41 @@ function cookieFrom(response, name) {
   return value ? `${name}=${value}` : null;
 }
 
+async function completeMfaEnrollment(setupCookie) {
+  const setupBegin = await fetch(`${baseUrl}/api/v1/admin/auth/mfa/setup`, {
+    method: "POST",
+    headers: requestHeaders(baseUrl, setupCookie),
+  });
+  const setupBeginBody = await setupBegin.json();
+  assert.equal(setupBegin.status, 200);
+  assert.match(setupBeginBody.data.otpauth_url, /^otpauth:\/\/totp\//);
+
+  const setupVerify = await fetch(`${baseUrl}/api/v1/admin/auth/mfa/verify`, {
+    method: "POST",
+    headers: {
+      ...requestHeaders(baseUrl, setupCookie),
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ code: totpCode(setupBeginBody.data.secret) }),
+  });
+  const setupVerifyBody = await setupVerify.json();
+  assert.equal(setupVerify.status, 200);
+  assert.equal(setupVerifyBody.data.recovery_codes.length, 10);
+  assert.equal(setupVerifyBody.data.session_established, true);
+  const sessionCookie = cookieFrom(setupVerify, "__Host-fco_sid");
+  assert.ok(sessionCookie);
+  return {
+    secret: setupBeginBody.data.secret,
+    recoveryCodes: setupVerifyBody.data.recovery_codes,
+    sessionCookie,
+  };
+}
+
+async function waitForFreshTotpStep() {
+  const nextStep = Math.floor(Date.now() / 30_000) + 1;
+  await new Promise((resolve) => setTimeout(resolve, nextStep * 30_000 - Date.now() + 50));
+}
+
 const loginResponse = await fetchReady(`${baseUrl}/login`);
 assert.equal(loginResponse.status, 200);
 
@@ -333,11 +368,6 @@ const enabledStatus = await fetch(`${baseUrl}/api/v1/admin/auth/mfa`, {
 assert.equal(enabledStatus.status, 200);
 assert.equal((await enabledStatus.json()).data.enabled, true);
 
-const setupLogout = await fetch(`${baseUrl}/api/v1/admin/auth/logout`, {
-  method: "POST",
-  headers: requestHeaders(baseUrl, setupSessionCookie),
-});
-assert.equal(setupLogout.status, 204);
 const recoveryLogin = await fetch(`${baseUrl}/api/v1/admin/auth/login`, {
   method: "POST",
   headers: {
@@ -373,6 +403,125 @@ const reusedRecoveryLogin = await fetch(`${baseUrl}/api/v1/admin/auth/login`, {
 assert.equal(reusedRecoveryLogin.status, 401);
 assert.equal((await reusedRecoveryLogin.json()).error.code, "FCO-1006");
 console.log("PASS HTTP one-time recovery login | first=200 reuse=401");
+
+const invalidReset = await fetch(`${baseUrl}/api/v1/admin/auth/mfa/reset`, {
+  method: "POST",
+  headers: {
+    ...requestHeaders(baseUrl, setupSessionCookie),
+    "content-type": "application/json",
+  },
+  body: JSON.stringify({ password, totp: null, recovery_code: null }),
+});
+assert.equal(invalidReset.status, 400);
+assert.equal((await invalidReset.json()).error.code, "FCO-1001");
+
+const invalidPasswordReset = await fetch(`${baseUrl}/api/v1/admin/auth/mfa/reset`, {
+  method: "POST",
+  headers: {
+    ...requestHeaders(baseUrl, setupSessionCookie),
+    "content-type": "application/json",
+  },
+  body: JSON.stringify({
+    password: "incorrect-password",
+    totp: null,
+    recovery_code: setupVerifyBody.data.recovery_codes[1],
+  }),
+});
+assert.equal(invalidPasswordReset.status, 401);
+assert.equal((await invalidPasswordReset.json()).error.code, "FCO-1005");
+const sessionAfterRejectedReset = await fetch(`${baseUrl}/api/v1/admin/products`, {
+  headers: requestHeaders(baseUrl, setupSessionCookie),
+});
+assert.equal(sessionAfterRejectedReset.status, 200);
+
+const recoveryResetRequestId = `admin-e2e-mfa-reset-recovery-${Date.now()}`;
+const recoveryReset = await fetch(`${baseUrl}/api/v1/admin/auth/mfa/reset`, {
+  method: "POST",
+  headers: {
+    ...requestHeaders(baseUrl, setupSessionCookie),
+    "content-type": "application/json",
+    "x-request-id": recoveryResetRequestId,
+  },
+  body: JSON.stringify({
+    password,
+    totp: null,
+    recovery_code: setupVerifyBody.data.recovery_codes[1],
+  }),
+});
+const recoveryResetBody = await recoveryReset.json();
+assert.equal(
+  recoveryReset.status,
+  200,
+  `recovery MFA reset failed: ${JSON.stringify(recoveryResetBody)}`,
+);
+assert.equal(recoveryResetBody.data.setup_required, true);
+assert.equal(recoveryReset.headers.get("x-request-id"), recoveryResetRequestId);
+const recoveryResetChallenge = cookieFrom(recoveryReset, "__Host-fco_mfa_setup");
+assert.ok(recoveryResetChallenge);
+assert.match(recoveryReset.headers.get("set-cookie") ?? "", /__Host-fco_sid=;.*Max-Age=0/);
+const staleSessionAfterRecoveryReset = await fetch(`${baseUrl}/api/v1/admin/products`, {
+  headers: requestHeaders(baseUrl, setupSessionCookie),
+});
+assert.equal(staleSessionAfterRecoveryReset.status, 401);
+const revokedRecoveryLogin = await fetch(`${baseUrl}/api/v1/admin/auth/login`, {
+  method: "POST",
+  headers: {
+    ...requestHeaders(baseUrl),
+    "content-type": "application/json",
+  },
+  body: JSON.stringify({
+    email: setupEmail,
+    password,
+    recovery_code: setupVerifyBody.data.recovery_codes[2],
+  }),
+});
+assert.equal(revokedRecoveryLogin.status, 403);
+assert.equal((await revokedRecoveryLogin.json()).error.code, "FCO-1006");
+const resetStatus = await fetch(`${baseUrl}/api/v1/admin/auth/mfa`, {
+  headers: requestHeaders(baseUrl, recoveryResetChallenge),
+});
+const resetStatusBody = await resetStatus.json();
+assert.equal(resetStatus.status, 200);
+assert.equal(resetStatusBody.data.enabled, false);
+assert.equal(resetStatusBody.data.setup_challenge, true);
+const recoveryResetPage = await fetch(`${baseUrl}/mfa/setup`, {
+  headers: requestHeaders(baseUrl, recoveryResetChallenge),
+});
+assert.equal(recoveryResetPage.status, 200);
+const secondEnrollment = await completeMfaEnrollment(recoveryResetChallenge);
+console.log("PASS HTTP MFA reset with recovery code | factors and all sessions revoked; setup required");
+
+await waitForFreshTotpStep();
+const totpResetRequestId = `admin-e2e-mfa-reset-totp-${Date.now()}`;
+const totpReset = await fetch(`${baseUrl}/api/v1/admin/auth/mfa/reset`, {
+  method: "POST",
+  headers: {
+    ...requestHeaders(baseUrl, secondEnrollment.sessionCookie),
+    "content-type": "application/json",
+    "x-request-id": totpResetRequestId,
+  },
+  body: JSON.stringify({
+    password,
+    totp: totpCode(secondEnrollment.secret),
+    recovery_code: null,
+  }),
+});
+const totpResetBody = await totpReset.json();
+assert.equal(
+  totpReset.status,
+  200,
+  `TOTP MFA reset failed: ${JSON.stringify(totpResetBody)}`,
+);
+assert.equal(totpResetBody.data.setup_required, true);
+assert.equal(totpReset.headers.get("x-request-id"), totpResetRequestId);
+const totpResetChallenge = cookieFrom(totpReset, "__Host-fco_mfa_setup");
+assert.ok(totpResetChallenge);
+const staleSessionAfterTotpReset = await fetch(`${baseUrl}/api/v1/admin/products`, {
+  headers: requestHeaders(baseUrl, secondEnrollment.sessionCookie),
+});
+assert.equal(staleSessionAfterTotpReset.status, 401);
+const finalEnrollment = await completeMfaEnrollment(totpResetChallenge);
+console.log("PASS HTTP MFA reset with current TOTP | re-enrolled using new setup challenge");
 
 const rateLimitEmail = `rate-limit-${Date.now()}@fco.invalid`;
 for (let attempt = 1; attempt <= 5; attempt += 1) {
@@ -451,6 +600,30 @@ try {
   );
   assert.ok(mfaAudit.rows[0].enabled_count >= 1);
   assert.equal(mfaAudit.rows[0].recovery_count, 1);
+  const resetAudit = await db.query(
+    `select count(*)::int as count,
+            array_agg("before"->>'proof_type' order by request_id) as proof_types
+       from sys.audit_log
+      where actor_id = $1::uuid
+        and action = 'auth.mfa_reset'
+        and request_id = any($2::text[])`,
+    [setupStaffId, [recoveryResetRequestId, totpResetRequestId]],
+  );
+  assert.equal(resetAudit.rows[0].count, 2);
+  assert.deepEqual(resetAudit.rows[0].proof_types.sort(), ["recovery_code", "totp"]);
+  const revokedFactors = await db.query(
+    `select count(*) filter (
+              where kind = 'totp' and confirmed_at is not null and disabled_at is not null
+            )::int as disabled_totp_count,
+            count(*) filter (
+              where kind = 'totp' and confirmed_at is not null and disabled_at is null
+            )::int as active_totp_count
+       from iam.mfa_factors
+      where user_id = $1::uuid`,
+    [setupStaffId],
+  );
+  assert.ok(revokedFactors.rows[0].disabled_totp_count >= 2);
+  assert.equal(revokedFactors.rows[0].active_totp_count, 1);
   const remainingCodes = await db.query(
     `select count(*)::int as count
        from iam.mfa_factors
@@ -458,7 +631,7 @@ try {
         and confirmed_at is not null and disabled_at is null`,
     [setupStaffId],
   );
-  assert.equal(remainingCodes.rows[0].count, 9);
+  assert.equal(remainingCodes.rows[0].count, 10);
   const history = await db.query(
     `select count(*)::int as count,
             bool_and(amount_rial in (100000, 125000)) as amounts_preserved

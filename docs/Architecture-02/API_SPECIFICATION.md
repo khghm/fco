@@ -3,7 +3,7 @@
 > **وضعیت:** تأییدشده (G0) · **نسخه:** v1.3 · **تاریخ:** ۱۴۰۵/۰۹/۰۵
 > **مرجع بالادست:** `Architecture-02/SYSTEM_ARCHITECTURE.md §4` · **مجوزها:** `Business-01/USER_ROLES_AND_PERMISSIONS.md §3`
 > **قاعده:** OpenAPI تک‌منبع در `packages/contracts/openapi.yaml` تولید می‌شود؛ این سند **قرارداد رفتاری** است، OpenAPI **قرارداد شکلی**. اختلاف = باگ.
-> **وضعیت پیاده‌سازی:** صفحه‌های پنل `/admin/products`، `/admin/settings/security` و `/mfa/setup` به endpointهای محصول/تنوع/قیمت و MFA متصل‌اند. E2E محلی PostgreSQL/Redis/HTTP این صفحات، MFA/recovery، rate limit ورود، Audit و RBAC را تأیید می‌کند. روی commit `cd71c8e`، CI run `45959296552` شامل CI اصلی، Storefront catalog HTTP E2E و Admin API HTTP E2E کامل سبز شد؛ اتصال MinIO واقعی و تعویض/ابطال عامل MFA در صورت گم‌شدن دستگاه همچنان بازند. این برش به‌تنهایی آمادگی Production کامل نیست.
+> **وضعیت پیاده‌سازی:** صفحه‌های پنل `/admin/products`، `/admin/settings/security` و `/mfa/setup` به endpointهای محصول/تنوع/قیمت و MFA متصل‌اند. E2E محلی PostgreSQL/Redis/HTTP تأیید کرده است: MFA/recovery، تعویض عامل با TOTP یا recovery code، ابطال همهٔ نشست‌ها/عامل‌های قبلی، setup اجباری مجدد، rate limit، Audit و RBAC. آزمون HTTP رسانه روی MinIO OSS ساخته‌شده از سورس نیز Presigned GET و `next/image` را تأیید کرد. برش آغازین سبد مهمان/حساب و ورود OTP آزمایشی نیز با E2E HTTP و بازیابی پاک‌سازی Redis تأیید شده است؛ checkout و provider پیامک واقعی پیاده نشده‌اند. روی commit `cd71c8e`، CI run `45959296552` کامل سبز شد؛ تغییرات تازه هنوز در CI اجرا نشده‌اند و این برش به‌تنهایی آمادگی Production کامل نیست.
 > **مالک قرارداد API و کدهای `FCO-*`.** `SYSTEM_ARCHITECTURE §4` فقط خلاصه معماری است.
 
 ---
@@ -46,14 +46,14 @@
 | POST | `/admin/auth/login` | — | ایمیل + رمز و در صورت نیاز TOTP؛ صدور نشست |
 | POST | `/admin/auth/logout` | نشست | ابطال نشست جاری |
 | GET | `/auth/session` | نشست | کاربر، نقش‌ها، مجوزها، `mfa_verified` |
-| POST | `/auth/customer/otp/request` | — | ارسال OTP؛ پاسخ یکسان برای موبایل موجود/غیرموجود |
-| POST | `/auth/customer/otp/verify` | — | ورود/ثبت‌نام مشتری |
+| POST | `/api/v1/auth/otp/request` | — | ارسال OTP؛ پاسخ یکسان برای موبایل موجود/غیرموجود |
+| POST | `/api/v1/auth/otp/verify` | — | ورود مشتری فعال با کد یک‌بارمصرف؛ ثبت‌نام در این برش پیاده نشده |
 | POST | `/auth/password/forgot` | — | همیشه `202` (بدون افشای وجود حساب) |
 | POST | `/auth/password/reset` | — | با توکن یک‌بارمصرف |
 | GET | `/iam/sessions` | `iam.session.revoke` | نشست‌های کاربر |
 | DELETE | `/iam/sessions/{id}` | `iam.session.revoke` | ابطال راه‌دور |
 
-در پنل پیاده‌شده، TOTP یا کد بازیابی در `POST /api/v1/admin/auth/login` بررسی می‌شود؛ وضعیت، enrollment و تأیید MFA از `/api/v1/admin/auth/mfa`, `/setup` و `/verify` انجام می‌شود. endpoint عمومی‌تر `/auth/session` و چرخهٔ مدیریتی تعویض عامل MFA هنوز در این برش وجود ندارند.
+در پنل پیاده‌شده، TOTP یا کد بازیابی در `POST /api/v1/admin/auth/login` بررسی می‌شود؛ وضعیت، enrollment، تأیید و reset MFA از `/api/v1/admin/auth/mfa`, `/setup`, `/verify` و `/reset` انجام می‌شود. endpoint عمومی‌تر `/auth/session` در این برش وجود ندارد.
 
 ---
 
@@ -125,6 +125,7 @@ slug باید با الگوی `^[a-z0-9]+(-[a-z0-9]+)*$` سازگار باشد؛
 | GET | `/api/v1/admin/auth/mfa` | وضعیت عامل و شمار کدهای بازیابی؛ نشست معتبر یا challenge راه‌اندازی لازم است |
 | POST | `/api/v1/admin/auth/mfa/setup` | ساخت secret و `otpauth_url` موقت برای اسکن QR/ورود دستی؛ پاسخ `no-store` |
 | POST | `/api/v1/admin/auth/mfa/verify` | `{ "code": "123456" }`; تأیید TOTP، فعال‌سازی MFA و ارائهٔ یک‌بارهٔ ۱۰ کد بازیابی؛ challenge راه‌اندازی در صورت موفقیت نشست صادر می‌کند |
+| POST | `/api/v1/admin/auth/mfa/reset` | `{ "password": "...", "totp": "123456", "recovery_code": null }` یا کد بازیابی به‌جای TOTP؛ نشست معتبر، رمز فعلی و دقیقاً یکی از دو مدرک لازم است. عامل‌ها و همهٔ نشست‌های کاربر باطل، MFA اجباری و setup مجدد لازم می‌شود؛ Audit با `request_id` ثبت و نشست جاری پاک می‌شود |
 | GET | `/api/v1/admin/products?limit=50&offset=0` | سقف `limit=100`؛ نیازمند `catalog.product.read` |
 | GET | `/api/v1/admin/products/{id}` | جزئیات قابل‌ویرایش محصول؛ محصول آرشیوشده/ناموجود `404` |
 | POST | `/api/v1/admin/products` | `slug`, `title`, `description`, `brand_id`, `category_id`, `attributes`; مجوز داخل `cat.product_create` |
@@ -133,7 +134,7 @@ slug باید با الگوی `^[a-z0-9]+(-[a-z0-9]+)*$` سازگار باشد؛
 | POST | `/api/v1/admin/products/{id}/variants` | `sku`, `barcode?`, `weight_g?`; مجوز داخل `cat.variant_create` |
 | POST | `/api/v1/admin/variants/{id}/prices` | `amount_rial`, `effective_from`, `compare_at_rial?`, `channel?`, `reason?`; مبلغ عدد صحیح ریال، کانال پیش‌فرض `web`; مجوز `pricing.price.update` و Audit با actor/request_id در همان تراکنش |
 
-Login با Argon2id بررسی می‌شود؛ TOTP مصرف‌شده و کد بازیابی مصرف‌شده دوباره پذیرفته نمی‌شوند. کدهای بازیابی به‌صورت HMAC ذخیره می‌شوند. `SESSION_TOKEN_PEPPER` و `MFA_ENCRYPTION_KEY` باید در محیط اجرا به‌صورت secret تصادفی تنظیم شوند؛ نمونه‌های `.env.example` برای Production نیستند. rate limit پنل از Redis مشترک استفاده می‌کند و در صورت نبودن/قطع Redis به limiter حافظه‌ای هر نمونه تنزل می‌کند؛ برای استقرار چندنمونه‌ای باید Redis در دسترس و پایش شود. خطای ورودی `400 / FCO-1001`، نبود مجوز `403 / FCO-1003`، خطای ورود `401` و عبور از سقف ورود `429 / FCO-1007` است؛ پاسخ API، `request_id` را در body و `X-Request-Id` دارد. [GitHub Actions run 45959296552](https://github.com/khghm/fco/actions/runs/45959296552) محلی/CI HTTP و آزمون‌های اصلی را برای commit `cd71c8e` سبز کرد؛ آزمون مرورگر تعاملی/MinIO واقعی و workflow تعویض عامل MFA همچنان لازم‌اند.
+Login با Argon2id بررسی می‌شود؛ TOTP مصرف‌شده و کد بازیابی مصرف‌شده دوباره پذیرفته نمی‌شوند. کدهای بازیابی به‌صورت HMAC ذخیره می‌شوند. `SESSION_TOKEN_PEPPER` و `MFA_ENCRYPTION_KEY` باید در محیط اجرا به‌صورت secret تصادفی تنظیم شوند؛ نمونه‌های `.env.example` برای Production نیستند. rate limit پنل از Redis مشترک استفاده می‌کند و در صورت نبودن/قطع Redis به limiter حافظه‌ای هر نمونه تنزل می‌کند؛ برای استقرار چندنمونه‌ای باید Redis در دسترس و پایش شود. خطای ورودی `400 / FCO-1001`، نبود مجوز `403 / FCO-1003`، خطای ورود `401` و عبور از سقف ورود `429 / FCO-1007` است؛ پاسخ API، `request_id` را در body و `X-Request-Id` دارد. [GitHub Actions run 45959296552](https://github.com/khghm/fco/actions/runs/45959296552) برای commit `cd71c8e` سبز شد؛ E2E محلی reset MFA و MinIO OSS نیز سبز است، اما تغییرات تازه هنوز در CI اجرا نشده‌اند.
 
 ### ۳.۲ قیمت و تخفیف
 | متد | مسیر | مجوز | نکته |
@@ -168,6 +169,19 @@ Login با Argon2id بررسی می‌شود؛ TOTP مصرف‌شده و کد ب
 | POST | `/admin/orders/{id}/transitions` | `order.assign` / `order.cancel` + گذار مجاز |
 | POST | `/admin/orders/{id}/notes` | `order.note.write` |
 | POST | `/admin/orders/{id}/cancel` | `order.cancel` (قواعد مالی/انباری) |
+
+#### برش پیاده‌سازی‌شدهٔ سبد و OTP مشتری
+
+| متد | مسیر اجراشده | ورودی/رفتار |
+|---|---|---|
+| GET | `/api/v1/cart` | خواندن سبد مهمان یا حساب؛ قیمت جاری از PostgreSQL می‌آید، نه از Redis یا ورودی مشتری |
+| POST | `/api/v1/cart/items` | `{ "variant_id": "...", "quantity": 2 }`; قیمت ارسالی نادیده گرفته می‌شود؛ تنوع منتشرنشده/غیرفعال رد می‌شود |
+| POST | `/api/v1/auth/otp/request` | `{ "mobile": "09..." }`; پاسخ `202` یکسان؛ محدودیت‌ها از توابع OTP دیتابیس |
+| POST | `/api/v1/auth/otp/verify` | `{ "mobile": "09...", "code": "123456" }`; نشست با کوکی `__Host-fco_customer_sid` و ویژگی‌های `HttpOnly; Secure; SameSite=Lax` |
+
+کوکی مهمان `__Host-fco_cart_sid` فقط UUID تصادفی دارد؛ اقلام در Redis به‌شکل variant/quantity نگه‌داری می‌شوند و مشاهده/افزودن TTL لغزان ۷روزه را تمدید می‌کند. در ورود، Snapshot سبد Redis با سبد PostgreSQL حساب در تراکنش OTP/نشست ادغام می‌شود؛ ثبت منبع ادغام در DB idempotent است و کلید Redis فقط پس از commit پاک می‌شود. اگر پاک‌سازی عقب بیفتد، `GET /api/v1/cart` نتیجه را با `guest_cart_cleanup_pending=true` گزارش می‌کند و برای ادغام‌های معوق پاک‌سازی Redis را در درخواست بعدی تکرار می‌کند. E2E در `scripts/cart-auth-e2e-http.mjs` دو محصول، نادیده‌گرفتن قیمت جعلی، رد OTP نادرست، انتقال اقلام، پاک‌شدن Redis، retry بدون افزایش دوبارهٔ تعداد و بازیابی پاک‌سازی معوق را بررسی می‌کند.
+
+`ISmsProvider` مرز Strategy/Adapter ارسال کد است. در development/test، `MockSmsProvider` کد خام را فقط از طریق تابع دیتابیس به `sys.otp_spool` می‌نویسد؛ فقط وقتی `auth.otp.spool_enabled=true` باشد. `FCO_E2E_MODE=true` فقط در اسکریپت آزمون اجازه می‌دهد همان Mock با build production اجرا شود. هیچ SMS provider واقعی پیکربندی نشده؛ در Production درخواست ارسال با `503 / FCO-1018` رد می‌شود. این مسیر ورود فقط حساب مشتری فعال از قبل موجود را می‌پذیرد؛ ثبت‌نام، UI ورود و checkout هنوز خارج از این برش‌اند.
 
 **نمونه `place-order`:**
 ```http

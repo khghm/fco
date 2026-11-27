@@ -20,10 +20,14 @@
 - Migrationهای `0020`/`0021` برای قیمت نسخه‌دار/Audit و مجوز خواندن کاتالوگ پنل؛ آزمون SQL قیمت، زیرساخت نشست Argon2id/TOTP، middleware، ورود/خروج، API محصولات و ثبت قیمت اضافه شد.
 - صفحهٔ ورود حداقلی و job مستقل `Admin API HTTP E2E`؛ آزمون با PostgreSQL واقعی مسیر MFA، RBAC، نسخه‌بندی محصول/قیمت، Audit و ابطال نشست را اجرا می‌کند.
 - UI مدیریت محصول/قیمت و تاریخچهٔ قیمت، صفحات امنیت و راه‌اندازی MFA با QR/TOTP، کدهای بازیابی یک‌بارمصرف و rate limit ورود ادمین (۵ تلاش/۱۵ دقیقه) اضافه شدند؛ E2E مسیرهای HTTP و پاسخ صفحات را پوشش می‌دهد.
+- نخستین برش BR-3: `GET/POST /api/v1/cart*` برای سبد مهمان Redis و حساب PostgreSQL، کوکی UUID با TTL لغزان ۷روزه، قیمت‌گذاری فقط سمت سرور و ادغام اتمیک/idempotent سبد مهمان هنگام ورود مشتری با OTP.
+- `ISmsProvider` و `MockSmsProvider` برای توسعه/E2E اضافه شدند؛ کد OTP فقط با پرچم دیتابیس موجود در `sys.otp_spool` نگه‌داری می‌شود. در Production بدون provider واقعی مسیر ارسال صریحاً `503 / FCO-1018` می‌دهد.
+- Migration `0022_customer_cart`، seed دومین محصول/مشتری آزمایشی، تست HTTP مستقل `scripts/cart-auth-e2e-http.mjs` و اتصال آن به job کاتالوگ اضافه شدند.
 
 ### Changed
 - وضعیت README و Project Master Control با پیشرفت BR-1/BR-2 هم‌راستا شد؛ قرارداد واقعی endpoint در `API_SPECIFICATION.md` ثبت شد و READMEهای scaffold با راهنمای مخزن جایگزین شدند.
 - مشخصات API و وضعیت کنترل پروژه با محدودیت‌های واقعی پنل هم‌راستا شد؛ E2E محلی تأییدشده از E2E GitHub جدا گزارش می‌شود.
+- قرارداد API و وضعیت README/کنترل پروژه با مرز واقعی BR-3 هم‌راستا شد: ورود فقط برای حساب فعال موجود، بدون SMS Production و بدون ادعای تکمیل checkout.
 
 ### Verified
 - E2E کاتالوگ با PostgreSQL، Redis و S3rver: ۱۹ Migration، ۲۴ تست، lint/typecheck/build؛ HTTP واقعی برای Presigned GET با TTL=900، دریافت PNG، `next/image`، صفحهٔ جزئیات، 400/404، نادیده‌گرفتن هدر IP جعلی و درخواست ۲۱م از سقف ۲۰/min با `429/FCO-1007` و `Retry-After` سبز شد. هر دو job (`ci` و `Storefront catalog HTTP E2E`) روی GitHub Actions #5 برای commit `27ee1fa` نیز موفق شدند: [نتیجهٔ اجرا](https://github.com/khghm/fco/actions/runs/45842656947). اتصال به MinIO واقعی هنوز تأیید نشده است.
@@ -41,12 +45,17 @@
 - E2E تازهٔ Admin روی `fco_admin_e2e_20261127071614_1387` با ۲۱ Migration و Redis سبز شد: صفحات محصولات/امنیت/setup، جزئیات محصول، تنوع و تاریخچهٔ دو نسخهٔ قیمت، MFA enrollment/TOTP، recovery code (ورود اول `200` و مصرف دوباره `401`)، رد RBAC `403`, rate limit تلاش ششم `429`, Audit و logout تأیید شدند.
 - commit `cd71c8e` به GitHub push شد و [GitHub Actions run 45959296552](https://github.com/khghm/fco/actions/runs/45959296552) کامل سبز شد؛ CI اصلی، Storefront catalog HTTP E2E و Admin API HTTP E2E هر سه موفق بودند.
 - `npm test`: ۴۸ پاس و ۴ skip آگاهانه؛ همان ۴ تست PostgreSQL کاتالوگ بدون `FCO_E2E_DATABASE_URL` غیرفعال‌اند و E2Eهای مستقل دیتابیس را اجرا می‌کنند. typecheck، lint و build هر دو اپ سبز شدند؛ build فروشگاه با مقادیر نمونهٔ S3 لازم بود.
+- Admin API HTTP E2E روی دیتابیس مستقل `fco_admin_mfa_reset_final_20261127122354` با ۲۱ Migration سبز شد: رمز اشتباه بدون ابطال نشست رد شد؛ reset با recovery code و TOTP، ابطال عوامل و نشست‌های قدیمی، رد recovery factorهای قبلی، setup اجباری مجدد و Audit با نوع مدرک تأیید شدند.
+- MinIO OSS از سورس محلی ساخته و روی loopback اجرا شد؛ در دیتابیس مستقل `fco_catalog_minio_e2e_20261127121347` با ۲۱ Migration، fixture PNG در bucket واقعی MinIO قرار گرفت و HTTP برای Presigned GET، `/_next/image` و صفحهٔ محصول موفق شد؛ پاسخ رسانه `image/png` و TTL امضا ۹۰۰ ثانیه بود. باینری با نسخهٔ `DEVELOPMENT.GOGET` گزارش شد؛ آزمون CI/Production محسوب نمی‌شود.
+- `scripts/catalog-e2e.sh` اکنون با `FCO_E2E_EXTERNAL_S3=true` endpoint و اعتبارنامهٔ S3 loopback را می‌پذیرد؛ مسیر HTTP آن روی MinIO به‌صورت مستقیم آزموده شد، اما خود wrapper Bash در این محیط Windows اجرا نشد چون Bash قابل‌استفاده در دسترس نبود.
+- Cart/Auth HTTP E2E روی دیتابیس تازهٔ `fco_cart_recovery_e2e_20261127131233` با Migrationهای `0001..0022` و Redis سبز شد: دو محصول مهمان با قیمت سروری، OTP اشتباه رد شد، OTP Spool صحیح نشست ساخت، اقلام به سبد حساب منتقل شدند، ادغام تکراری تعداد را افزایش نداد و کلید Redis پاک شد. آزمون بازیابی، پاک‌سازی را هنگام قفل معوق نگه داشت و پس از رفع قفل در درخواست بعدی کامل کرد.
+- اعتبارسنجی آخرین تغییرها: `npm test` با ۵۰ پاس و ۴ skip آگاهانه، lint و typecheck همهٔ workspaceها و build فروشگاه سبز شدند؛ `node --check scripts/cart-auth-e2e-http.mjs` و `git diff --check` نیز سبز هستند. CI/GitHub و push برای تغییرات تازه هنوز اجرا نشده‌اند.
 
 ### Limitation
-- دیتابیس توسعهٔ `fco` هنوز از Migrationهای BR-2 استفاده نمی‌کند؛ E2Eها دیتابیس‌های جدا و نگه‌داشته‌شده دارند. اتصال MinIO واقعی به‌علت رد دسترسی image از Quay/Docker Hub تأیید نشده؛ آزمون رسانه همچنان با S3rver است. rate limit اختصاصی فقط برای login ادمین پیاده شده و در قطعی Redis به fallback حافظه‌ای هر نمونه تنزل می‌کند. workflow تازهٔ پنل و گردش مجاز تعویض عامل MFA پس از گم‌شدن دستگاه هنوز بازند.
+- دیتابیس توسعهٔ `fco` هنوز از Migrationهای BR-2/BR-3 استفاده نمی‌کند؛ E2Eها دیتابیس‌های جدا و نگه‌داشته‌شده دارند. provider پیامک Production، ثبت‌نام مشتری، UI ورود، checkout، سفارش و پرداخت پیاده نشده‌اند؛ Mock/Spool فقط توسعه/E2E است. CI برای تغییرات تازه معوق است. image آمادهٔ MinIO از registry در دسترس نیست؛ آزمون محلی MinIO OSS ساخته‌شده از سورس سبز است. rate limit اختصاصی فقط برای login ادمین پیاده شده و در قطعی Redis به fallback حافظه‌ای هر نمونه تنزل می‌کند.
 
 ### Planned
-- ادامهٔ BR-2: تأیید CI پس از push، اتصال MinIO واقعی و workflow امن تعویض/ابطال عامل MFA؛ سپس صفحهٔ دسته و BR-3 تا BR-5 طبق گیت‌های پذیرش.
+- ادامهٔ BR-2: اجرای CI برای تغییرات تازه و صفحهٔ دسته؛ سپس BR-3 تا BR-5 طبق گیت‌های پذیرش.
 
 ---
 

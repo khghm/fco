@@ -7,7 +7,10 @@
     "./admin-catalog": "./src/admin-catalog.ts",
     "./admin-session": "./src/admin-session.ts",
     "./catalog": "./src/catalog.ts",
+    "./cart": "./src/cart.ts",
+    "./customer-auth": "./src/customer-auth.ts",
     "./media": "./src/media.ts",
+    "./session-token": "./src/session-token.ts",
     "./staff-auth": "./src/staff-auth.ts"
   },
   "dependencies": {

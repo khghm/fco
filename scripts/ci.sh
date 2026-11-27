@@ -173,7 +173,7 @@ stage_typecheck() {
   ok "همه Migrationها کامپایل شدند"
 
   step "typecheck | سطح API مورد انتظار"
-  local tables="iam.users iam.roles iam.permissions iam.user_roles iam.role_permissions iam.sessions iam.password_resets iam.mfa_factors iam.otp_requests iam.sod_role_conflicts sys.audit_log sys.outbox sys.inbox_events sys.idempotency_keys sys.job_runs sys.settings sys.setting_versions sys.schema_migrations sys.otp_spool cat.brands cat.categories cat.products cat.variants cat.product_media pricing.prices inv.warehouses inv.stock_balance inv.stock_ledger inv.reservations inv.cost_layers inv.cost_layer_consumption"
+  local tables="iam.users iam.roles iam.permissions iam.user_roles iam.role_permissions iam.sessions iam.password_resets iam.mfa_factors iam.otp_requests iam.sod_role_conflicts sys.audit_log sys.outbox sys.inbox_events sys.idempotency_keys sys.job_runs sys.settings sys.setting_versions sys.schema_migrations sys.otp_spool cat.brands cat.categories cat.products cat.variants cat.product_media pricing.prices inv.warehouses inv.stock_balance inv.stock_ledger inv.reservations inv.cost_layers inv.cost_layer_consumption shop.carts shop.cart_items shop.cart_merge_sources"
   local missing="" count=0
   for t in $tables; do
     [[ "$(q "$DB_TYPECHECK" "select to_regclass('$t') is not null;")" = "t" ]] || missing="$missing $t"
@@ -182,14 +182,22 @@ stage_typecheck() {
   [[ -z "$missing" ]] || die "جدول(های) غایب:$missing"
   ok "$count جدول کلیدی موجود است"
 
-  local funcs="health_report job_begin job_finish purge_expired_sessions run_session_cleanup outbox_emit outbox_claim inbox_consume audit_write audit_search setting_set authorize start_session authenticate revoke_session request_otp verify_otp"
+  local funcs="health_report job_begin job_finish purge_expired_sessions run_session_cleanup outbox_emit outbox_claim inbox_consume audit_write audit_search setting_set authorize start_session authenticate revoke_session request_otp verify_otp invalidate_otp"
   local have
   have="$(q "$DB_TYPECHECK" "select count(distinct p.proname) from pg_proc p
       join pg_namespace n on n.oid = p.pronamespace
       where n.nspname in ('iam','sys')
         and p.proname in ('$(echo $funcs | sed "s/ /','/g")');")"
-  [[ "$have" -ge 17 ]] || die "تابع(های) کلیدی غایب: $have از ۱۷"
-  ok "۱۷ تابع کلیدی روی دیتابیس تازه وجود دارند"
+  [[ "$have" -ge 18 ]] || die "تابع(های) کلیدی غایب: $have از ۱۸"
+  ok "۱۸ تابع کلیدی روی دیتابیس تازه وجود دارند"
+
+  local cart_have
+  cart_have="$(q "$DB_TYPECHECK" "select count(distinct p.proname) from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'shop'
+        and p.proname in ('merge_guest_cart','complete_guest_cart_merge','pending_guest_cart_merges');")"
+  [[ "$cart_have" -eq 3 ]] || die "تابع(های) ادغام سبد غایب: $cart_have از ۳"
+  ok "۳ تابع ادغام سبد روی دیتابیس تازه وجود دارند"
 
   local cat_have
   cat_have="$(q "$DB_TYPECHECK" "select count(distinct p.proname) from pg_proc p

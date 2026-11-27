@@ -128,6 +128,46 @@ export function MfaSetup() {
     }
   }
 
+  async function resetMfa(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const verification = String(form.get("verification") ?? "").trim();
+    const isTotp = /^\d{6}$/.test(verification);
+    const isRecoveryCode = /^[A-Z2-7]{4}(?:-[A-Z2-7]{4}){3}$/i.test(verification);
+    if (!isTotp && !isRecoveryCode) {
+      setError("کد برنامه باید ۶ رقم یا یک کد بازیابی معتبر باشد.");
+      return;
+    }
+
+    setPending(true);
+    setError("");
+    setMessage("");
+    setRequestId("");
+    try {
+      const response = await fetch("/api/v1/admin/auth/mfa/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          password: form.get("password"),
+          totp: isTotp ? verification : null,
+          recovery_code: isRecoveryCode ? verification.toUpperCase() : null,
+        }),
+      });
+      const body = (await response.json()) as ApiResponse<{ setup_required: boolean }>;
+      if (!response.ok || !body.data?.setup_required) {
+        setError(body.error?.message ?? "تعویض عامل MFA انجام نشد.");
+        setRequestId(body.error?.request_id ?? response.headers.get("X-Request-Id") ?? "");
+        return;
+      }
+      router.replace("/mfa/setup");
+      router.refresh();
+    } catch {
+      setError("ارتباط با سرویس تعویض MFA برقرار نشد.");
+    } finally {
+      setPending(false);
+    }
+  }
+
   async function copyRecoveryCodes() {
     try {
       await navigator.clipboard.writeText(recoveryCodes.join("\n"));
@@ -174,6 +214,41 @@ export function MfaSetup() {
         <button type="button" onClick={beginSetup} disabled={pending}>
           {pending ? "در حال آماده‌سازی…" : status.pending ? "ادامهٔ راه‌اندازی MFA" : "فعال‌سازی MFA"}
         </button>
+      )}
+
+      {status?.enabled && !setup && (
+        <div className="admin-panel mfa-reset-panel">
+          <h2>تعویض یا بازیابی دستگاه MFA</h2>
+          <p>
+            برای ادامه، رمز فعلی و TOTP دستگاه فعلی یا یک کد بازیابی لازم است.
+            با موفقیت، نشست‌های فعال و همهٔ عامل‌های قبلی باطل می‌شوند و باید MFA تازه را همین‌جا تنظیم کنید.
+          </p>
+          <form className="admin-form-grid" onSubmit={resetMfa}>
+            <label>
+              رمز فعلی
+              <input
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                required
+                maxLength={1024}
+              />
+            </label>
+            <label>
+              TOTP فعلی یا کد بازیابی
+              <input
+                name="verification"
+                type="text"
+                autoComplete="one-time-code"
+                required
+                maxLength={19}
+              />
+            </label>
+            <button type="submit" disabled={pending}>
+              {pending ? "در حال تأیید و باطل‌کردن عامل قبلی…" : "باطل‌کردن عامل قبلی و تنظیم مجدد"}
+            </button>
+          </form>
+        </div>
       )}
 
       {setup && (
