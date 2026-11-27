@@ -630,3 +630,7 @@ BR-1 و **M1** بسته شدند؛ گام‌های ۱ تا ۳ BR-2 انجام ش
 ### وضعیت تازهٔ برش آغازین BR-3
 
 Migrationهای `0001..0022` روی دیتابیس تازهٔ `fco_cart_recovery_e2e_20261127131233` اجرا شدند. آزمون HTTP با PostgreSQL و Redis واقعی انتقال دو محصول، قیمت سروری، رد OTP نادرست، ورود مشتری، حذف Redis، idempotency و بازیابی پاک‌سازی معوق پس از رفع قفل را تأیید کرد. `npm test` (۵۰ پاس/۴ skip آگاهانه)، lint، typecheck و build فروشگاه سبز هستند. commit `2c53bc9` به `main` push شد و [CI run 45996480352](https://github.com/khghm/fco/actions/runs/45996480352) با موفقیت هر سه job را گذراند. گام بعدی، ادامهٔ checkout، سفارش و پرداخت است؛ provider پیامک Production، ثبت‌نام و UI ورود نیز خارج از این برش‌اند.
+
+### Checkout نهایی برش گام بعدی BR-3
+
+Migration `0023_checkout_orders_payments` روی دیتابیس تازهٔ `fco_checkout_http_e2e_20261127_g` اعمال شد. Endpointهای `POST /api/v1/checkout/quote` و `POST /api/v1/checkout/orders` همراه صفحهٔ Mock Payment تست شدند. هزینهٔ ارسال ۵۰۰٬۰۰۰ ریال و TTL رزرو ۱۵ دقیقه از تنظیمات نسخه‌دار PostgreSQL خوانده می‌شوند؛ مالیات MVP صفر و در رکورد سفارش ذخیره می‌شود. `scripts/checkout-e2e-http.mjs` HTTP واقعی را برای نقل‌قول سروری، سفارش ایدمپوتنت، پرداخت موفق/ناموفق، replay callback، انقضا رزرو، بازگردانی سبد مهمان/حساب و rollback موجودی ناکافی سبز کرد. درگاه/Provider واقعی هنوز پیاده نشده‌اند.

@@ -25,6 +25,7 @@ import {
   newGuestCartId,
   readGuestCart,
 } from "@/lib/guest-cart";
+import { recoverGuestCart } from "@/lib/checkout";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -67,7 +68,19 @@ export async function GET(request: Request): Promise<Response> {
     if (rawCartId && !guestCartIdFromRequest(request)) {
       return apiErrorResponse(400, "FCO-1001", "شناسهٔ سبد مهمان معتبر نیست.", requestId);
     }
-    const cartId = rawCartId ?? newGuestCartId();
+    let cartId = rawCartId ?? newGuestCartId();
+    if (rawCartId) {
+      const recovery = await recoverGuestCart(cartId);
+      if (recovery.cleanupPending) {
+        return apiErrorResponse(
+          409,
+          "FCO-1091",
+          "تکمیل سفارش پیشین هنوز در حال بازیابی است؛ دوباره تلاش کنید.",
+          requestId,
+        );
+      }
+      cartId = recovery.cartId;
+    }
     const storedItems = await readGuestCart(cartId);
     const items = await getPublicCartItems(storedItems);
     const headers = new Headers({

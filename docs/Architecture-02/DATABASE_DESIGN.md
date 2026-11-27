@@ -187,17 +187,17 @@ oms.orders(id, order_number text unique not null, customer_id null,
   guest_email citext, status text not null,           -- ماشین وضعیت §3.7
   warehouse_id uuid not null, currency char(3) default 'IRR',
   subtotal_rial bigint not null, discount_rial bigint not null default 0,
-  shipping_rial bigint not null default 0, tax_rial bigint not null default 0,
+  shipping_rial bigint not null default 0, tax_amount_rial bigint not null default 0,
   total_rial bigint not null,
   payment_status text not null default 'pending',
   placed_at timestamptz, cancelled_at, cancel_reason,
   shipping_address_snapshot jsonb not null,
   correlation_id uuid not null, version int not null default 1,
-  check (total_rial = subtotal_rial - discount_rial + shipping_rial + tax_rial))
+  check (total_rial = subtotal_rial - discount_rial + shipping_rial + tax_amount_rial))
 oms.order_lines(id, order_id, variant_id, sku_snapshot, title_snapshot,
   color_snapshot, size_snapshot, quantity int check (quantity > 0),
   unit_price_rial bigint not null, discount_rial bigint not null default 0,
-  tax_rial bigint not null default 0, unit_cogs_rial bigint,
+  tax_amount_rial bigint not null default 0, unit_cogs_rial bigint,
   price_version_id uuid, tax_rule_version_id uuid)
 oms.order_events(id, order_id, from_status, to_status, actor_id,
   reason, metadata jsonb, created_at)

@@ -2,6 +2,7 @@ import {
   addCustomerCartItem,
   getPublicCartItems,
   readCustomerCart,
+  resolveSellableVariantSku,
   validateSellableCartItem,
 } from "@fco/infrastructure/cart";
 import {
@@ -24,6 +25,7 @@ import {
   GUEST_CART_COOKIE,
 } from "@/lib/customer-cookies";
 import { addGuestCartItem, newGuestCartId, readGuestCart } from "@/lib/guest-cart";
+import { recoverGuestCart } from "@/lib/checkout";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,21 +42,33 @@ export async function POST(request: Request): Promise<Response> {
   if (parsedBody.kind === "invalid" || !isRecord(parsedBody.value)) {
     return apiErrorResponse(400, "FCO-1001", "اطلاعات قلم سبد معتبر نیست.", requestId);
   }
-  const variantId =
+  const suppliedVariantId =
     typeof parsedBody.value.variant_id === "string"
       ? parsedBody.value.variant_id
       : "";
+  const sku =
+    typeof parsedBody.value.sku === "string"
+      ? parsedBody.value.sku.trim()
+      : "";
   const quantity = parsedBody.value.quantity;
   if (
-    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      variantId,
-    ) ||
+    (Boolean(suppliedVariantId) === Boolean(sku)) ||
+    (suppliedVariantId !== "" &&
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        suppliedVariantId,
+      )) ||
+    (sku !== "" && sku.length > 128) ||
     typeof quantity !== "number" ||
     !Number.isSafeInteger(quantity) ||
     quantity < 1 ||
     quantity > 99
   ) {
     return apiErrorResponse(400, "FCO-1001", "شناسهٔ تنوع یا تعداد معتبر نیست.", requestId);
+  }
+
+  const variantId = suppliedVariantId || (await resolveSellableVariantSku(sku));
+  if (!variantId) {
+    return apiErrorResponse(404, "FCO-1004", "تنوع محصول برای فروش در دسترس نیست.", requestId);
   }
 
   const customerToken = customerSessionTokenFromRequest(request);
@@ -87,7 +101,19 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
 
-    const cartId = suppliedCartId ?? newGuestCartId();
+    let cartId = suppliedCartId ?? newGuestCartId();
+    if (suppliedCartId) {
+      const recovery = await recoverGuestCart(cartId);
+      if (recovery.cleanupPending) {
+        return apiErrorResponse(
+          409,
+          "FCO-1091",
+          "تکمیل سفارش پیشین هنوز در حال بازیابی است؛ دوباره تلاش کنید.",
+          requestId,
+        );
+      }
+      cartId = recovery.cartId;
+    }
     const addResult = await addGuestCartItem(cartId, variantId, quantity);
     if (addResult === "merge_in_progress") {
       return apiErrorResponse(

@@ -2,8 +2,8 @@
 
 پلتفرم یکپارچه تجارت و مدیریت کسب‌وکار پوشاک — Self-hosted · فارسی/RTL · Production-grade.
 
-> **وضعیت پروژه:** فاز ۰ طراحی بسته شده (G0) و BR-1 با شاهد M1 پذیرفته شده است. BR-2 در حال اجراست: کاتالوگ عمومی و UI/API پنل محصول، قیمت و MFA روی commit `cd71c8e` در E2E محلی و GitHub Actions سبز هستند؛ آزمون محلی MinIO OSS واقعی و گردش تعویض/ابطال MFA نیز سبز است. نخستین برش BR-3 برای سبد مهمان/حساب و ورود OTP آزمایشی در حال پیاده‌سازی و E2E محلی است؛ تغییرات تازه هنوز به CI/push نرفته‌اند.
-> سامانه هنوز برای فروش واقعی کامل نیست: checkout، سفارش، پرداخت، و provider پیامک Production پیاده نشده‌اند. وضعیت هر گام با شاهد در `docs/Engineering-04/IMPLEMENTATION_START_PLAN.md` ثبت می‌شود.
+> **وضعیت پروژه:** فاز ۰ طراحی بسته شده (G0) و BR-1 با شاهد M1 پذیرفته شده است. BR-2 پیاده شده و با E2E/CI تأیید شده است؛ برگ نخست BR-3 (سبد مهمان/حساب، OTP و Checkout Mock) نیز روی PostgreSQL/Redis واقعی، Migrationهای تازه و HTTP واقعی سبز است.
+> سامانه هنوز برای فروش Production کامل نیست: درگاه واقعی، provider پیامک واقعی، تخصیص/ارسال نهایی و reconciliation باقی‌اند. وضعیت هر گام با شاهد در `docs/Engineering-04/IMPLEMENTATION_START_PLAN.md` ثبت می‌شود.
 
 ## مستندات
 
@@ -138,6 +138,8 @@ MinIO محلی با باینری OSS ساخته‌شده از سورس آزمو�
 `GET /api/v1/cart` و `POST /api/v1/cart/items` سبد مهمان Redis را با کوکی UUID تصادفی `__Host-fco_cart_sid` (`HttpOnly; Secure; SameSite=Lax`) مدیریت می‌کنند؛ دادهٔ Redis فقط شناسهٔ تنوع و تعداد است و قیمت هر بار از PostgreSQL خوانده می‌شود. TTL هفت‌روزه با مشاهده/افزودن تمدید می‌شود. ورود از `POST /api/v1/auth/otp/request` و `/verify` است؛ در توسعه/E2E کد با `MockSmsProvider` فقط در `sys.otp_spool` ذخیره می‌شود و فعال‌سازی آن نیازمند `auth.otp.spool_enabled=true` است. در Production که provider پیامک واقعی هنوز انتخاب/پیاده نشده، درخواست OTP با `503 / FCO-1018` رد می‌شود؛ Mock جایگزین Production نیست. ورود فعلی فقط برای حساب مشتری فعال موجود است و ثبت‌نام مشتری در این برش نیست.
 
 پس از OTP معتبر، ایجاد نشست مشتری و ادغام سبد مهمان در سبد PostgreSQL حساب در یک تراکنش انجام می‌شود؛ منبع ادغام یکتا است تا retry مقدارها را دوباره اضافه نکند. کلید Redis فقط پس از commit دیتابیس پاک می‌شود. اگر پاک‌سازی Redis عقب بماند، `GET /api/v1/cart` ادغام‌های معوق را با قفل فعال به‌صورت صریح گزارش می‌کند و پس از رفع قفل پاک‌سازی را تکرار می‌کند. `scripts/cart-auth-e2e-http.mjs` تست HTTP واقعی را در job کاتالوگ اجرا می‌کند: دو محصول مهمان، قیمت‌های سروری با ورودی قیمت جعلی، OTP اشتباه/درست، انتقال اقلام، حذف Redis، retry بدون تکثیر و بازیابی پاک‌سازی معوق. E2E محلی روی دیتابیس تازهٔ `fco_cart_recovery_e2e_20261127131233` با ۲۲ Migration و Redis سبز شد؛ `npm test` (۵۰ پاس/۴ skip آگاهانه)، lint، typecheck و build فروشگاه نیز سبز هستند. [GitHub Actions run #13](https://github.com/khghm/fco/actions/runs/45996480352) برای commit `2c53bc9` با هر سه job سبز شد.
+
+برش Checkout اکنون `POST /api/v1/checkout/quote`، `POST /api/v1/checkout/orders` و صفحهٔ `Mock Payment` را شامل می‌شود. هزینهٔ ارسال ثابت ۵۰۰٬۰۰۰ ریال و مالیات MVP صفر از تنظیمات نسخه‌دار PostgreSQL خوانده می‌شوند؛ سفارش، قلم‌ها، رزرو، پرداخت و Idempotency در تراکنش ثبت می‌شوند. پرداخت موفق رزرو را `committed` می‌کند، پرداخت ناموفق/انقضا سبد را بازیابی می‌کند و replay callback اثری دوباره ندارد. تست HTTP کامل روی دیتابیس تازهٔ `fco_checkout_http_e2e_20261127_g` شامل نقل‌قول، total سروری، replay idempotent، پرداخت موفق/ناموفق، انقضا، حساب مشتری و rollback موجودی ناکافی سبز شد.
 
 برای اجرای دوبارهٔ همین برش از Git Bash روی Windows یا Bash روی Linux، `DATABASE_URL` را به دیتابیس مدیریتی PostgreSQL بدهید. اسکریپت `scripts/admin-api-e2e.sh` یک دیتابیس یکتا می‌سازد، Migrationها و fixtureهای موقت را اعمال می‌کند و دیتابیس را برای بررسی نگه می‌دارد:
 

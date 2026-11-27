@@ -5,6 +5,7 @@ import { getPublicProduct } from "@fco/application/catalog";
 import { createPostgresPublicCatalogRepository } from "@fco/infrastructure/catalog";
 import { formatPrice, persianNumber } from "../../../lib/catalog-presentation";
 import { addPublicMediaUrls } from "../../../lib/public-media";
+import AddToCartButton from "./add-to-cart-button";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
           FCO
         </Link>
         <Link href="/">بازگشت به کاتالوگ</Link>
+        <Link href="/checkout">سبد خرید و تسویه</Link>
       </header>
 
       <article className="product-page">
@@ -80,6 +82,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
                         ? `موجود · ${persianNumber.format(variant.available_qty)} عدد`
                         : "ناموجود"}
                     </span>
+                    <AddToCartButton
+                      sku={variant.sku}
+                      available={variant.available_qty > 0}
+                    />
                   </li>
                 ))}
               </ul>

@@ -3,7 +3,7 @@
 > **وضعیت:** تأییدشده (G0) · **نسخه:** v1.3 · **تاریخ:** ۱۴۰۵/۰۹/۰۵
 > **مرجع بالادست:** `Architecture-02/SYSTEM_ARCHITECTURE.md §4` · **مجوزها:** `Business-01/USER_ROLES_AND_PERMISSIONS.md §3`
 > **قاعده:** OpenAPI تک‌منبع در `packages/contracts/openapi.yaml` تولید می‌شود؛ این سند **قرارداد رفتاری** است، OpenAPI **قرارداد شکلی**. اختلاف = باگ.
-> **وضعیت پیاده‌سازی:** صفحه‌های پنل `/admin/products`، `/admin/settings/security` و `/mfa/setup` به endpointهای محصول/تنوع/قیمت و MFA متصل‌اند. E2E محلی PostgreSQL/Redis/HTTP تأیید کرده است: MFA/recovery، تعویض عامل با TOTP یا recovery code، ابطال همهٔ نشست‌ها/عامل‌های قبلی، setup اجباری مجدد، rate limit، Audit و RBAC. آزمون HTTP رسانه روی MinIO OSS ساخته‌شده از سورس نیز Presigned GET و `next/image` را تأیید کرد. برش آغازین سبد مهمان/حساب و ورود OTP آزمایشی نیز با E2E HTTP و بازیابی پاک‌سازی Redis تأیید شده است؛ checkout و provider پیامک واقعی پیاده نشده‌اند. CI run `45959296552` برای پنل و [run `45996480352`](https://github.com/khghm/fco/actions/runs/45996480352) برای commit `2c53bc9` سبز هستند؛ در run اخیر هر سه job موفق شدند. این برش به‌تنهایی آمادگی Production کامل نیست.
+> **وضعیت پیاده‌سازی:** صفحه‌های پنل `/admin/products`، `/admin/settings/security` و `/mfa/setup` به endpointهای محصول/تنوع/قیمت و MFA متصل‌اند. E2E محلی PostgreSQL/Redis/HTTP Checkout نیز سبز است: نقل‌قول سروری، هزینهٔ ارسال نسخه‌دار، صفر مالیات، ثبت ایدمپوتنت، رزرو اتمیک، پرداخت Mock موفق/ناموفق/منقضی، replay و بازگردانی سبد. درگاه و provider پیامک Production پیاده نشده‌اند.
 > **مالک قرارداد API و کدهای `FCO-*`.** `SYSTEM_ARCHITECTURE §4` فقط خلاصه معماری است.
 
 ---
@@ -178,6 +178,9 @@ Login با Argon2id بررسی می‌شود؛ TOTP مصرف‌شده و کد ب
 | POST | `/api/v1/cart/items` | `{ "variant_id": "...", "quantity": 2 }`; قیمت ارسالی نادیده گرفته می‌شود؛ تنوع منتشرنشده/غیرفعال رد می‌شود |
 | POST | `/api/v1/auth/otp/request` | `{ "mobile": "09..." }`; پاسخ `202` یکسان؛ محدودیت‌ها از توابع OTP دیتابیس |
 | POST | `/api/v1/auth/otp/verify` | `{ "mobile": "09...", "code": "123456" }`; نشست با کوکی `__Host-fco_customer_sid` و ویژگی‌های `HttpOnly; Secure; SameSite=Lax` |
+| POST | `/api/v1/checkout/quote` | `{}`؛ سبد فعلی مهمان/حساب را با قیمت سروری، ارسال ۵۰۰٬۰۰۰ ریال و مالیات صفر برآورد می‌کند |
+| POST | `/api/v1/checkout/orders` | نشانی ارسال + `Idempotency-Key`؛ سفارش/رزرو/پرداخت را در یک تراکنش ثبت می‌کند و payment_url Mock برمی‌گرداند |
+| POST | `/api/v1/payments/mock/{paymentId}/complete` | فقط با `FCO_E2E_MODE=true`؛ `{ token, outcome }` با نتایج `succeeded` یا `failed`، ایدمپوتنت |
 
 کوکی مهمان `__Host-fco_cart_sid` فقط UUID تصادفی دارد؛ اقلام در Redis به‌شکل variant/quantity نگه‌داری می‌شوند و مشاهده/افزودن TTL لغزان ۷روزه را تمدید می‌کند. در ورود، Snapshot سبد Redis با سبد PostgreSQL حساب در تراکنش OTP/نشست ادغام می‌شود؛ ثبت منبع ادغام در DB idempotent است و کلید Redis فقط پس از commit پاک می‌شود. اگر پاک‌سازی عقب بیفتد، `GET /api/v1/cart` نتیجه را با `guest_cart_cleanup_pending=true` گزارش می‌کند و برای ادغام‌های معوق پاک‌سازی Redis را در درخواست بعدی تکرار می‌کند. E2E در `scripts/cart-auth-e2e-http.mjs` دو محصول، نادیده‌گرفتن قیمت جعلی، رد OTP نادرست، انتقال اقلام، پاک‌شدن Redis، retry بدون افزایش دوبارهٔ تعداد و بازیابی پاک‌سازی معوق را بررسی می‌کند.
 

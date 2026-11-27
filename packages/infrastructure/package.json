@@ -8,6 +8,7 @@
     "./admin-session": "./src/admin-session.ts",
     "./catalog": "./src/catalog.ts",
     "./cart": "./src/cart.ts",
+    "./checkout": "./src/checkout.ts",
     "./customer-auth": "./src/customer-auth.ts",
     "./media": "./src/media.ts",
     "./session-token": "./src/session-token.ts",

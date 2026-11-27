@@ -55,6 +55,7 @@ export FCO_E2E_DATABASE_URL="$DATABASE_URL"
 export REDIS_URL="${FCO_E2E_REDIS_URL:-redis://127.0.0.1:6379}"
 export SESSION_TOKEN_PEPPER="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(48).toString("base64url"))')"
 export OTP_CODE_PEPPER="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(48).toString("base64url"))')"
+export FCO_MOCK_PAYMENT_SECRET="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(48).toString("base64url"))')"
 export FCO_SMS_PROVIDER=mock
 export FCO_E2E_MODE=true
 if [[ "${FCO_E2E_EXTERNAL_S3:-false}" = "true" ]]; then
@@ -160,3 +161,4 @@ SERVER_PID=$!
 export FCO_E2E_BASE_URL="http://127.0.0.1:$PORT"
 node "$ROOT/scripts/catalog-e2e-http.mjs"
 node "$ROOT/scripts/cart-auth-e2e-http.mjs"
+node "$ROOT/scripts/checkout-e2e-http.mjs"

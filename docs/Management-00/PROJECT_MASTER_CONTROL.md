@@ -177,7 +177,7 @@ quality/         Micro-UX و کاتالوگ شکست (پشتیبان کیفیت)
 | پیکربندی Docker | معتبر | `docker compose config` exit 0 |
 | راه‌اندازی سرویس‌های محلی | ناقص (تصویر S3 در دسترس نیست) | `Engineering-04/IMPLEMENTATION_START_PLAN.md §5` |
 | BR-1 | بسته؛ M1 شامل ورود محدود، Audit، Job/DLQ و بازیابی پذیرفته شده | `Engineering-04/IMPLEMENTATION_START_PLAN.md §3، §5.۱۱` |
-| لایهٔ دادهٔ BR-2/BR-3 | Migrationهای 0011..0021 کاتالوگ/موجودی/قیمت را می‌سازند؛ 0022 افزودن سبد حساب‌دار، منبع Merge idempotent و ابطال OTP ناموفق را دارد. E2E محلی اجرای 0001..0022 را با سبد مهمان/حساب تأیید کرد؛ checkout و سفارش بازند | `packages/infrastructure/migrations/0011..0022`، `packages/infrastructure/tests/fixtures/catalog_e2e_seed.sql` |
+| لایهٔ دادهٔ BR-2/BR-3 | Migrationهای 0011..0022 کاتالوگ/موجودی/قیمت/سبد را می‌سازند؛ 0023 سفارش، قلم، پرداخت Mock، idempotency و هزینهٔ ارسال/مالیات نسخه‌دار را می‌افزاید. E2E HTTP روی دیتابیس تازهٔ `fco_checkout_http_e2e_20261127_g` سبز شد؛ هم Checkout و هم رزرو/بازگردانی سبد تأیید شد | `packages/infrastructure/migrations/0011..0023`، `scripts/checkout-e2e-http.mjs` |
 | اپ‌های فروشگاه/مدیریت | کاتالوگ عمومی و پنل Admin روی commit `cd71c8e` در E2E محلی و [GitHub Actions run 45959296552](https://github.com/khghm/fco/actions/runs/45959296552) سبز هستند. E2E محلی reset MFA، MinIO OSS و OTP/ادغام سبد به‌همراه بازیابی پاک‌سازی Redis را تأیید کرد؛ lint/typecheck/test/build نیز سبز است. [CI run 45996480352](https://github.com/khghm/fco/actions/runs/45996480352) برای برش سبد/OTP با هر سه job موفق شد | `apps/shop/`، `apps/admin/`، `scripts/catalog-e2e.sh`، `scripts/cart-auth-e2e-http.mjs`، `scripts/admin-api-e2e.sh` |
 | G1 / سفارش end-to-end | باز؛ هنوز سفارش واقعی از فروشگاه تا تحویل اجرا نمی‌شود | `product/RELEASE_PLAN.md §3` |
 

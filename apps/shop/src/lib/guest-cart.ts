@@ -6,6 +6,7 @@ export const GUEST_CART_TTL_SECONDS = 7 * 24 * 60 * 60;
 const MERGE_LOCK_TTL_MS = 60_000;
 const CART_KEY_PREFIX = "fco:guest-cart:";
 const MERGE_LOCK_PREFIX = "fco:guest-cart-merge-lock:";
+const RESTORE_MARKER_PREFIX = "fco:guest-cart-restored:";
 
 let client: Redis | undefined;
 let clientUrl: string | undefined;
@@ -97,6 +98,10 @@ function mergeLockKey(cartId: string): string {
   return `${MERGE_LOCK_PREFIX}${cartId}`;
 }
 
+function restoreMarkerKey(cartId: string): string {
+  return `${RESTORE_MARKER_PREFIX}${cartId}`;
+}
+
 export async function addGuestCartItem(
   cartId: string,
   variantId: string,
@@ -113,14 +118,18 @@ export async function addGuestCartItem(
     end
     redis.call("HINCRBY", KEYS[1], ARGV[1], added)
     redis.call("EXPIRE", KEYS[1], ARGV[3])
+    if redis.call("EXISTS", KEYS[3]) == 1 then
+      redis.call("EXPIRE", KEYS[3], ARGV[3])
+    end
     return 1
   `;
   const redis = await connectedRedis();
   const result = await redis.eval(
     script,
-    2,
+    3,
     cartKey(cartId),
     mergeLockKey(cartId),
+    restoreMarkerKey(cartId),
     variantId,
     String(quantity),
     String(GUEST_CART_TTL_SECONDS),
@@ -145,6 +154,7 @@ export async function readGuestCart(cartId: string): Promise<GuestCartLine[]> {
     return [];
   }
   await redis.expire(key, GUEST_CART_TTL_SECONDS);
+  await redis.expire(restoreMarkerKey(cartId), GUEST_CART_TTL_SECONDS);
 
   return Object.entries(stored).map(([variantId, rawQuantity]) => {
     if (
@@ -246,4 +256,60 @@ export async function cleanupPendingGuestCart(cartId: string): Promise<boolean> 
     throw new Error("Redis returned an unexpected pending cart cleanup result.");
   }
   return result === 1;
+}
+
+export async function restoreGuestCart(
+  cartId: string,
+  items: GuestCartLine[],
+): Promise<void> {
+  if (!Array.isArray(items) || items.length < 1 || items.length > 50) {
+    throw new RangeError("Restored guest cart must contain between one and fifty items.");
+  }
+  const seen = new Set<string>();
+  const args: string[] = [String(GUEST_CART_TTL_SECONDS), String(items.length)];
+  for (const item of items) {
+    if (
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        item.variantId,
+      ) ||
+      !Number.isSafeInteger(item.quantity) ||
+      item.quantity < 1 ||
+      item.quantity > 9999 ||
+      seen.has(item.variantId)
+    ) {
+      throw new TypeError("Database returned invalid guest cart restore items.");
+    }
+    seen.add(item.variantId);
+    args.push(item.variantId, String(item.quantity));
+  }
+
+  const script = `
+    if redis.call("EXISTS", KEYS[2]) == 1 then
+      return 0
+    end
+    if redis.call("EXISTS", KEYS[1]) == 1 then
+      return -1
+    end
+    local count = tonumber(ARGV[2])
+    for i = 1, count do
+      redis.call("HSET", KEYS[1], ARGV[2 + (i * 2) - 1], ARGV[2 + (i * 2)])
+    end
+    redis.call("EXPIRE", KEYS[1], ARGV[1])
+    redis.call("SET", KEYS[2], "restored", "EX", ARGV[1])
+    return 1
+  `;
+  const redis = await connectedRedis();
+  const result = await redis.eval(
+    script,
+    2,
+    cartKey(cartId),
+    restoreMarkerKey(cartId),
+    ...args,
+  );
+  if (result === -1) {
+    throw new Error("Restore cart identifier already contains unrelated data.");
+  }
+  if (result !== 0 && result !== 1) {
+    throw new Error("Redis returned an unexpected guest cart restore result.");
+  }
 }

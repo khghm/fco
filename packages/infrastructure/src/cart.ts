@@ -82,6 +82,8 @@ export async function getPublicCartItems(
               coalesce(stock.available_qty, 0) as available_qty,
               coalesce(
                 product.status = 'published'
+                and product.published_at is not null
+                and product.published_at <= now()
                 and variant.is_active
                 and variant.archived_at is null
                 and current_price.amount_rial is not null,
@@ -167,6 +169,8 @@ export async function readCustomerCart(userId: string): Promise<PublicCartItem[]
               coalesce(stock.available_qty, 0) as available_qty,
               coalesce(
                 product.status = 'published'
+                and product.published_at is not null
+                and product.published_at <= now()
                 and variant.is_active
                 and variant.archived_at is null
                 and current_price.amount_rial is not null,
@@ -347,4 +351,43 @@ export async function validateSellableCartItem(
   const items = await getPublicCartItems([{ variantId, quantity: 1 }]);
   const item = items[0] ?? null;
   return item?.sellable ? item : null;
+}
+
+export async function resolveSellableVariantSku(
+  sku: string,
+): Promise<string | null> {
+  const client = await getPostgresPool("fco-shop-cart").connect();
+  let transactionOpen = false;
+  try {
+    await client.query("begin read only");
+    transactionOpen = true;
+    await client.query("set local role fco_app");
+    const result = await client.query<{ id: string }>(
+      `select variant.id
+         from cat.variants variant
+         join cat.products product on product.id = variant.product_id
+        where variant.sku = $1
+          and variant.is_active
+          and variant.archived_at is null
+          and product.status = 'published'
+          and product.published_at is not null
+          and product.published_at <= now()
+        limit 1`,
+      [sku],
+    );
+    await client.query("commit");
+    transactionOpen = false;
+    return result.rows[0]?.id ?? null;
+  } catch (error) {
+    if (transactionOpen) {
+      try {
+        await client.query("rollback");
+      } catch (rollbackError) {
+        throw new AggregateError([error, rollbackError], "Cart SKU lookup rollback failed.");
+      }
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
 }

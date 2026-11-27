@@ -50,6 +50,7 @@ export default async function Home({ searchParams }: HomeProps) {
           FCO
         </Link>
         <span className="header-note">پوشاک برای هر روز</span>
+        <Link href="/checkout">سبد خرید و تسویه</Link>
       </header>
 
       <section className="catalog-intro" aria-labelledby="catalog-title">
