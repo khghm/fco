@@ -178,7 +178,7 @@ quality/         Micro-UX و کاتالوگ شکست (پشتیبان کیفیت)
 | راه‌اندازی سرویس‌های محلی | ناقص (تصویر S3 در دسترس نیست) | `Engineering-04/IMPLEMENTATION_START_PLAN.md §5` |
 | BR-1 | بسته؛ M1 شامل ورود محدود، Audit، Job/DLQ و بازیابی پذیرفته شده | `Engineering-04/IMPLEMENTATION_START_PLAN.md §3، §5.۱۱` |
 | لایهٔ دادهٔ BR-2 | Migrationهای 0011..0019 کاتالوگ/موجودی/رزرو و جست‌وجوی عمومی را می‌سازند؛ 0020 قیمت نسخه‌دار و Audit و 0021 مجوز خواندن پنل را اضافه می‌کنند؛ آزمون SQL قیمت و اجرای زنجیرهٔ 0001..0021 در E2E محلی سبزند | `packages/infrastructure/migrations/0011..0021`، `packages/infrastructure/tests/0020_versioned_price_usecase_negative.sql` |
-| اپ‌های فروشگاه/مدیریت | فروشگاه عمومی E2E محلی و CI سبز است (GitHub Actions #5، commit `27ee1fa`؛ MinIO واقعی تأیید نشده). پایهٔ ورود/خروج و API محصول/قیمت با E2E PostgreSQL/HTTP محلی سبز است؛ اجرای job جدید در GitHub، UI عملیاتی، setup/recovery رابط MFA و rate limit پنل بازند | `apps/shop/`، `apps/admin/`، `scripts/catalog-e2e.sh`، `scripts/admin-api-e2e.sh`، `docs/Architecture-02/API_SPECIFICATION.md` |
+| اپ‌های فروشگاه/مدیریت | کاتالوگ عمومی و پنل Admin روی commit `cd71c8e` در E2E محلی و [GitHub Actions run 45959296552](https://github.com/khghm/fco/actions/runs/45959296552) سبز هستند: CRUD/تنوع/قیمت، MFA/TOTP/recovery، RBAC، Audit و logout تأیید شده‌اند؛ MinIO واقعی و workflow تعویض/ابطال عامل MFA همچنان بازند | `apps/shop/`، `apps/admin/`، `scripts/catalog-e2e.sh`، `scripts/admin-api-e2e.sh`، `docs/Architecture-02/API_SPECIFICATION.md` |
 | G1 / سفارش end-to-end | باز؛ هنوز سفارش واقعی از فروشگاه تا تحویل اجرا نمی‌شود | `product/RELEASE_PLAN.md §3` |
 
 ---

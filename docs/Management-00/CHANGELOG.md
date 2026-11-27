@@ -38,7 +38,8 @@
 - اجرای مستقل `npm test` بدون `FCO_E2E_DATABASE_URL` شامل ۴۳ پاس و ۴ skip آگاهانه است: هر چهار مورد در `apps/shop/src/app/api/v1/products/route.integration.test.ts` تست یکپارچگی PostgreSQL هستند و با `describe.skipIf(!databaseUrl)` فقط وقتی URL آزمون موجود نباشد skip می‌شوند؛ `scripts/catalog-e2e.sh` دیتابیس جدا می‌سازد، این متغیر را تنظیم می‌کند و هر ۴۷ تست را اجرا می‌کند.
 - lint، typecheck و build هر دو اپ سبز شدند. Build به متغیرهای پیکربندی S3 نمونه نیاز دارد؛ بدون آن‌ها `next.config` فروشگاه طبق قرارداد build را رد می‌کند.
 - در checkpoint پیش از این تغییرات، job `Admin API HTTP E2E` به workflow اضافه شده بود اما هنوز اجرا نشده بود؛ UI عملیاتی، setup/recovery MFA و rate limit پنل نیز آن زمان باز بودند. وضعیت تازهٔ محلی این موارد در ثبت‌های بعدی همین بخش آمده است.
-- E2E تازهٔ Admin روی `fco_admin_e2e_20261127071614_1387` با ۲۱ Migration و Redis سبز شد: صفحات محصولات/امنیت/setup، جزئیات محصول، تنوع و تاریخچهٔ دو نسخهٔ قیمت، MFA enrollment/TOTP، recovery code (ورود اول `200` و مصرف دوباره `401`)، رد RBAC `403`, rate limit تلاش ششم `429`, Audit و logout تأیید شدند. این اجرا محلی است و GitHub Actions برای تغییرات فعلی هنوز اجرا نشده است.
+- E2E تازهٔ Admin روی `fco_admin_e2e_20261127071614_1387` با ۲۱ Migration و Redis سبز شد: صفحات محصولات/امنیت/setup، جزئیات محصول، تنوع و تاریخچهٔ دو نسخهٔ قیمت، MFA enrollment/TOTP، recovery code (ورود اول `200` و مصرف دوباره `401`)، رد RBAC `403`, rate limit تلاش ششم `429`, Audit و logout تأیید شدند.
+- commit `cd71c8e` به GitHub push شد و [GitHub Actions run 45959296552](https://github.com/khghm/fco/actions/runs/45959296552) کامل سبز شد؛ CI اصلی، Storefront catalog HTTP E2E و Admin API HTTP E2E هر سه موفق بودند.
 - `npm test`: ۴۸ پاس و ۴ skip آگاهانه؛ همان ۴ تست PostgreSQL کاتالوگ بدون `FCO_E2E_DATABASE_URL` غیرفعال‌اند و E2Eهای مستقل دیتابیس را اجرا می‌کنند. typecheck، lint و build هر دو اپ سبز شدند؛ build فروشگاه با مقادیر نمونهٔ S3 لازم بود.
 
 ### Limitation

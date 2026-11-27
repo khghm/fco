@@ -2,7 +2,7 @@
 
 پلتفرم یکپارچه تجارت و مدیریت کسب‌وکار پوشاک — Self-hosted · فارسی/RTL · Production-grade.
 
-> **وضعیت پروژه:** فاز ۰ طراحی بسته شده (G0) و BR-1 با شاهد M1 پذیرفته شده است. BR-2 در حال اجراست: کاتالوگ عمومی و UI/API پنل محصول، قیمت و MFA در E2E محلی تأیید شده‌اند؛ push و اجرای CI برای تغییرات تازه و اتصال MinIO واقعی هنوز بازند.
+> **وضعیت پروژه:** فاز ۰ طراحی بسته شده (G0) و BR-1 با شاهد M1 پذیرفته شده است. BR-2 در حال اجراست: کاتالوگ عمومی و UI/API پنل محصول، قیمت و MFA روی commit `cd71c8e` در E2E محلی و GitHub Actions سبز هستند؛ اتصال MinIO واقعی و تعویض/ابطال عامل MFA همچنان بازند.
 > سامانه هنوز برای فروش واقعی کامل نیست: برخی کنترل‌های عملیاتی BR-2 بازند و BR-3 تا BR-5 پیاده نشده‌اند. وضعیت هر گام با شاهد در `docs/Engineering-04/IMPLEMENTATION_START_PLAN.md` ثبت می‌شود.
 
 ## مستندات
@@ -117,7 +117,7 @@ GET /api/v1/products?q=FCO (request 21, E2E limit=20/min)
 
 صفحهٔ `/admin/products` فهرست، ایجاد و ویرایش نسخه‌دار محصول، ایجاد تنوع، ثبت قیمت تازه و تاریخچهٔ تغییر قیمت را ارائه می‌کند؛ `/admin/settings/security` وضعیت MFA را نشان می‌دهد و `/mfa/setup` راه‌اندازی QR/کلید دستی، تأیید TOTP و نمایش یک‌بارهٔ ۱۰ کد بازیابی با امکان کپی/دانلود را دارد. Login از TOTP یا کد بازیابی یک‌بارمصرف پشتیبانی می‌کند. مسیرهای حساس با نشست PostgreSQL، middleware، کنترل مجوز use-case و Audit دارای actor و `request_id` محافظت می‌شوند. ورود ادمین به ۵ تلاش در ۱۵ دقیقه محدود است و عبور از سقف `429 / FCO-1007` و `Retry-After` می‌دهد؛ Redis شمارندهٔ مشترک است و در قطعی Redis، fallback حافظه‌ای فقط همان نمونه را پوشش می‌دهد.
 
-تأیید محلی تازهٔ HTTP E2E روی PostgreSQL واقعی با ۲۱ Migration و Redis سبز است: صفحات محصول/امنیت/setup، CRUD محصول، تنوع، قیمت نسخه‌دار و تاریخچه، MFA enrollment/TOTP، recovery code یک‌بارمصرف، رد RBAC، rate limit، Audit و خروج بررسی شدند. دیتابیس `fco_admin_e2e_20261127071614_1387` برای بررسی باقی است. workflow مستقل GitHub Actions اکنون Redis هم دارد؛ اجرای GitHub برای همین تغییرات تا push هنوز تأیید نشده است. چرخهٔ مجاز تعویض/ابطال عامل MFA در صورت گم‌شدن دستگاه هنوز پیاده نشده است.
+تأیید محلی تازهٔ HTTP E2E روی PostgreSQL واقعی با ۲۱ Migration و Redis سبز است: صفحات محصول/امنیت/setup، CRUD محصول، تنوع، قیمت نسخه‌دار و تاریخچه، MFA enrollment/TOTP، recovery code یک‌بارمصرف، رد RBAC، rate limit، Audit و خروج بررسی شدند. دیتابیس `fco_admin_e2e_20261127071614_1387` برای بررسی باقی است. روی commit `cd71c8e`، [GitHub Actions run 45959296552](https://github.com/khghm/fco/actions/runs/45959296552) کامل موفق شد: CI، Storefront catalog HTTP E2E و Admin API HTTP E2E سبز شدند. چرخهٔ مجاز تعویض/ابطال عامل MFA در صورت گم‌شدن دستگاه هنوز پیاده نشده است.
 
 تأیید رسانهٔ واقعی MinIO همچنان معوق است: pull تگ pin‌شده از Quay با `401` و pull تصویر رسمی از Docker Hub با خطای دسترسی رد شد. E2E رسانهٔ موجود از S3rver استفاده می‌کند و معادل اثبات MinIO واقعی نیست؛ دیتابیس توسعهٔ `fco` تغییر نمی‌کند. جزئیات قرارداد، endpointها و محدودیت‌ها در [`API_SPECIFICATION.md`](docs/Architecture-02/API_SPECIFICATION.md) آمده است.
 

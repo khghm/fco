@@ -3,7 +3,7 @@
 > **وضعیت:** تأییدشده (G0) · **نسخه:** v1.3 · **تاریخ:** ۱۴۰۵/۰۹/۰۵
 > **مرجع بالادست:** `Architecture-02/SYSTEM_ARCHITECTURE.md §4` · **مجوزها:** `Business-01/USER_ROLES_AND_PERMISSIONS.md §3`
 > **قاعده:** OpenAPI تک‌منبع در `packages/contracts/openapi.yaml` تولید می‌شود؛ این سند **قرارداد رفتاری** است، OpenAPI **قرارداد شکلی**. اختلاف = باگ.
-> **وضعیت پیاده‌سازی:** صفحه‌های پنل `/admin/products`، `/admin/settings/security` و `/mfa/setup` به endpointهای محصول/تنوع/قیمت و MFA متصل‌اند. E2E محلی PostgreSQL/Redis/HTTP این صفحات، MFA/recovery، rate limit ورود، Audit و RBAC را تأیید می‌کند. اجرای CI برای commit تازه و اتصال MinIO واقعی هنوز تأیید نشده‌اند؛ تعویض/ابطال عامل MFA در صورت گم‌شدن دستگاه نیز workflow جداگانه می‌خواهد. این برش به‌تنهایی آمادگی Production کامل نیست.
+> **وضعیت پیاده‌سازی:** صفحه‌های پنل `/admin/products`، `/admin/settings/security` و `/mfa/setup` به endpointهای محصول/تنوع/قیمت و MFA متصل‌اند. E2E محلی PostgreSQL/Redis/HTTP این صفحات، MFA/recovery، rate limit ورود، Audit و RBAC را تأیید می‌کند. روی commit `cd71c8e`، CI run `45959296552` شامل CI اصلی، Storefront catalog HTTP E2E و Admin API HTTP E2E کامل سبز شد؛ اتصال MinIO واقعی و تعویض/ابطال عامل MFA در صورت گم‌شدن دستگاه همچنان بازند. این برش به‌تنهایی آمادگی Production کامل نیست.
 > **مالک قرارداد API و کدهای `FCO-*`.** `SYSTEM_ARCHITECTURE §4` فقط خلاصه معماری است.
 
 ---
@@ -133,7 +133,7 @@ slug باید با الگوی `^[a-z0-9]+(-[a-z0-9]+)*$` سازگار باشد؛
 | POST | `/api/v1/admin/products/{id}/variants` | `sku`, `barcode?`, `weight_g?`; مجوز داخل `cat.variant_create` |
 | POST | `/api/v1/admin/variants/{id}/prices` | `amount_rial`, `effective_from`, `compare_at_rial?`, `channel?`, `reason?`; مبلغ عدد صحیح ریال، کانال پیش‌فرض `web`; مجوز `pricing.price.update` و Audit با actor/request_id در همان تراکنش |
 
-Login با Argon2id بررسی می‌شود؛ TOTP مصرف‌شده و کد بازیابی مصرف‌شده دوباره پذیرفته نمی‌شوند. کدهای بازیابی به‌صورت HMAC ذخیره می‌شوند. `SESSION_TOKEN_PEPPER` و `MFA_ENCRYPTION_KEY` باید در محیط اجرا به‌صورت secret تصادفی تنظیم شوند؛ نمونه‌های `.env.example` برای Production نیستند. rate limit پنل از Redis مشترک استفاده می‌کند و در صورت نبودن/قطع Redis به limiter حافظه‌ای هر نمونه تنزل می‌کند؛ برای استقرار چندنمونه‌ای باید Redis در دسترس و پایش شود. خطای ورودی `400 / FCO-1001`، نبود مجوز `403 / FCO-1003`، خطای ورود `401` و عبور از سقف ورود `429 / FCO-1007` است؛ پاسخ API، `request_id` را در body و `X-Request-Id` دارد. E2E محلی HTTP، پاسخ واقعی صفحات محصول/امنیت/setup و مسیرهای API را پوشش می‌دهد؛ آزمون مرورگر تعاملی و اجرای workflow در GitHub برای commit جاری هنوز انجام نشده‌اند.
+Login با Argon2id بررسی می‌شود؛ TOTP مصرف‌شده و کد بازیابی مصرف‌شده دوباره پذیرفته نمی‌شوند. کدهای بازیابی به‌صورت HMAC ذخیره می‌شوند. `SESSION_TOKEN_PEPPER` و `MFA_ENCRYPTION_KEY` باید در محیط اجرا به‌صورت secret تصادفی تنظیم شوند؛ نمونه‌های `.env.example` برای Production نیستند. rate limit پنل از Redis مشترک استفاده می‌کند و در صورت نبودن/قطع Redis به limiter حافظه‌ای هر نمونه تنزل می‌کند؛ برای استقرار چندنمونه‌ای باید Redis در دسترس و پایش شود. خطای ورودی `400 / FCO-1001`، نبود مجوز `403 / FCO-1003`، خطای ورود `401` و عبور از سقف ورود `429 / FCO-1007` است؛ پاسخ API، `request_id` را در body و `X-Request-Id` دارد. [GitHub Actions run 45959296552](https://github.com/khghm/fco/actions/runs/45959296552) محلی/CI HTTP و آزمون‌های اصلی را برای commit `cd71c8e` سبز کرد؛ آزمون مرورگر تعاملی/MinIO واقعی و workflow تعویض عامل MFA همچنان لازم‌اند.
 
 ### ۳.۲ قیمت و تخفیف
 | متد | مسیر | مجوز | نکته |
