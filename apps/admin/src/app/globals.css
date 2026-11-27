@@ -35,12 +35,21 @@ body {
   color: var(--muted);
 }
 
-.admin-header a {
+.admin-header a,
+.admin-brand,
+.admin-login-link {
   color: var(--accent);
   font-size: 1.4rem;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-decoration: none;
+}
+
+.admin-login-link {
+  display: inline-block;
+  margin-top: 16px;
+  font-size: 1rem;
+  letter-spacing: 0;
 }
 
 .admin-shell section {
@@ -60,6 +69,68 @@ body {
 .admin-shell section > p:last-child {
   color: var(--muted);
   line-height: 1.9;
+}
+
+.login-form {
+  display: grid;
+  gap: 18px;
+  margin-top: 28px;
+}
+
+.login-form label {
+  display: grid;
+  gap: 8px;
+  font-weight: 700;
+}
+
+.login-form input {
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+.login-form button,
+.login-success button {
+  min-height: 46px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: white;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.login-form button:disabled,
+.login-success button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.login-message {
+  color: #a12828;
+  line-height: 1.8;
+}
+
+.login-success {
+  margin-top: 24px;
+}
+
+.login-success p {
+  color: var(--accent);
+  line-height: 1.8;
+}
+
+.request-id {
+  direction: ltr;
+  color: var(--muted);
+  font-family: monospace;
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 540px) {

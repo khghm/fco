@@ -12,10 +12,8 @@ export default function Home() {
       <section aria-labelledby="admin-title">
         <p className="admin-eyebrow">مدیریت کسب‌وکار</p>
         <h1 id="admin-title">پنل مدیریت FCO</h1>
-        <p>
-          ورود کارکنان و ابزارهای عملیاتی هنوز به این پنل متصل نشده‌اند؛ تا
-          آماده‌شدن احراز هویت، هیچ عملیات مدیریتی در دسترس نیست.
-        </p>
+        <p>برای ورود به ابزارهای عملیاتی، از حساب کارکنان خود استفاده کنید.</p>
+        <Link className="admin-login-link" href="/login">ورود کارکنان</Link>
       </section>
     </main>
   );

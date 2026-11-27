@@ -1,6 +1,6 @@
 # تغییرات (CHANGELOG)
 
-> **وضعیت:** زنده · **نسخه:** v1.27 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۵
+> **وضعیت:** زنده · **نسخه:** v1.28 · **آخرین به‌روزرسانی:** ۱۴۰۵/۰۹/۰۵
 > قالب بر پایه Keep a Changelog، تاریخ‌ها شمسی + ISO. هر تغییر در **رفتار، دامنه یا ساختار اسناد** یک ردیف اینجا دارد.
 > شاهد هر نسخه: `git show --stat <commit>`.
 > **مالک تاریخ تغییرات اسناد و مخزن.**
@@ -17,9 +17,12 @@
 - آزمون‌های قرارداد API برای پاسخ موفق، ورودی نامعتبر و دسترس‌ناپذیری PostgreSQL.
 - اسکریپت `scripts/catalog-e2e.sh`، seed ثابت و آزمون HTTP مبتنی بر Node؛ job مستقل CI دیتابیس جدا می‌سازد و مسیر migration تا پاسخ API را اجرا می‌کند.
 - تصویر سرویس اختیاری MinIO در Compose به `quay.io/minio/minio:RELEASE.2024-04-18T19-09-19Z` pin شد؛ اجرای E2E اصلی همچنان با S3rver است.
+- Migrationهای `0020`/`0021` برای قیمت نسخه‌دار/Audit و مجوز خواندن کاتالوگ پنل؛ آزمون SQL قیمت، زیرساخت نشست Argon2id/TOTP، middleware، ورود/خروج، API محصولات و ثبت قیمت اضافه شد.
+- صفحهٔ ورود حداقلی و job مستقل `Admin API HTTP E2E`؛ آزمون با PostgreSQL واقعی مسیر MFA، RBAC، نسخه‌بندی محصول/قیمت، Audit و ابطال نشست را اجرا می‌کند.
 
 ### Changed
 - وضعیت README و Project Master Control با پیشرفت BR-1/BR-2 هم‌راستا شد؛ قرارداد واقعی endpoint در `API_SPECIFICATION.md` ثبت شد و READMEهای scaffold با راهنمای مخزن جایگزین شدند.
+- مشخصات API و وضعیت کنترل پروژه با محدودیت‌های واقعی پنل هم‌راستا شد؛ E2E محلی تأییدشده از E2E GitHub جدا گزارش می‌شود.
 
 ### Verified
 - E2E کاتالوگ با PostgreSQL، Redis و S3rver: ۱۹ Migration، ۲۴ تست، lint/typecheck/build؛ HTTP واقعی برای Presigned GET با TTL=900، دریافت PNG، `next/image`، صفحهٔ جزئیات، 400/404، نادیده‌گرفتن هدر IP جعلی و درخواست ۲۱م از سقف ۲۰/min با `429/FCO-1007` و `Retry-After` سبز شد. هر دو job (`ci` و `Storefront catalog HTTP E2E`) روی GitHub Actions #5 برای commit `27ee1fa` نیز موفق شدند: [نتیجهٔ اجرا](https://github.com/khghm/fco/actions/runs/45842656947). اتصال به MinIO واقعی هنوز تأیید نشده است.
@@ -28,9 +31,15 @@
 - اجرای `scripts/catalog-e2e.sh` از ابتدا تا انتها روی Windows/Git Bash پس از افزودن جزئیات محصول: دیتابیس تازه، Migrationهای `0001..0019`، ۲۰ آزمون، lint/typecheck/build هر دو اپ، HTTP فهرست و جزئیات `200`، صفحهٔ محصول `200`، ورودی نامعتبر `400 / FCO-1001` و محصول منتشرنشده `404 / FCO-1004`. `request_id` در چهار پاسخ API با header/body برابر بود.
 - CI job مستقل `catalog-e2e` به همان اسکریپت وصل شد؛ اسکریپت دیتابیس موجود را حذف/بازنویسی نمی‌کند و در CI دیتابیس در سرویس موقت PostgreSQL می‌ماند.
 - هر دو job (`ci` و `Storefront catalog HTTP E2E`) برای برش جزئیات محصول در GitHub Actions #3 روی commit `13b4f47` موفق شدند: [نتیجهٔ اجرا](https://github.com/khghm/fco/actions/runs/45834805163).
+- E2E نهایی پنل روی دیتابیس نگه‌داشته‌شدهٔ `fco_admin_e2e_final_20261126192311`: همهٔ ۲۱ Migration، ورود MFAدار و `__Host` cookie، فهرست/ایجاد/ویرایش نسخه‌دار محصول، ثبت نسخهٔ قیمت و Audit actor/request_id، رد دسترسی R-OP با `403/FCO-1003` و خروج مرکزی (`204` و سپس `401`) سبز شدند.
+- E2E نهایی کاتالوگ روی دیتابیس تازهٔ `fco_catalog_e2e_skip_verify_20261127094423`: ۲۱ Migration، هر ۴۷ تست workspace بدون skip، lint/typecheck/build هر دو اپ و HTTP واقعی برای فهرست/جزئیات محصول، رسانهٔ Presigned، تصویر، نرخ و خطاهای 400/404 سبز شدند.
+- هر ۱۵ سوئیت SQL زیرساخت روی دیتابیس تازهٔ جداگانه با Migrationهای `0001..0021` اجرا و سبز شدند؛ fixtureها در تراکنش خود سوئیت rollback شدند.
+- اجرای مستقل `npm test` بدون `FCO_E2E_DATABASE_URL` شامل ۴۳ پاس و ۴ skip آگاهانه است: هر چهار مورد در `apps/shop/src/app/api/v1/products/route.integration.test.ts` تست یکپارچگی PostgreSQL هستند و با `describe.skipIf(!databaseUrl)` فقط وقتی URL آزمون موجود نباشد skip می‌شوند؛ `scripts/catalog-e2e.sh` دیتابیس جدا می‌سازد، این متغیر را تنظیم می‌کند و هر ۴۷ تست را اجرا می‌کند.
+- lint، typecheck و build هر دو اپ سبز شدند. Build به متغیرهای پیکربندی S3 نمونه نیاز دارد؛ بدون آن‌ها `next.config` فروشگاه طبق قرارداد build را رد می‌کند.
+- CI job `Admin API HTTP E2E` به workflow اضافه شد؛ اجرای GitHub آن هنوز انجام نشده است. MinIO واقعی، UI عملیاتی، setup/recovery رابط MFA و rate limit پنل همچنان تأیید/پیاده نشده‌اند.
 
 ### Limitation
-- دیتابیس توسعهٔ `fco` هنوز Migrationهای کاتالوگ را ندارد؛ E2E روی دیتابیس و bucket جداست. پنل مدیریت و سایر endpointهای BR-2 همچنان بازند.
+- دیتابیس توسعهٔ `fco` هنوز از Migrationهای BR-2 استفاده نمی‌کند؛ E2Eها دیتابیس‌های جدا و نگه‌داشته‌شده دارند. پنل مدیریت هنوز UI عملیاتی و rate limit مختص خود را ندارد.
 
 ### Planned
 - ادامهٔ BR-2: تأیید MinIO واقعی، صفحهٔ دسته و پنل محصول/قیمت؛ سپس BR-3 تا BR-5 طبق گیت‌های پذیرش.

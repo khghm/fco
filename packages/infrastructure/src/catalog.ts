@@ -1,4 +1,4 @@
-import { Pool, type PoolClient, type QueryResultRow } from "pg";
+import { type PoolClient, type QueryResultRow } from "pg";
 import type {
   PublicCatalogPage,
   PublicCatalogQuery,
@@ -6,6 +6,7 @@ import type {
   PublicProduct,
   PublicProductDetail,
 } from "@fco/application/catalog";
+import { getPostgresPool } from "./postgres";
 
 interface ProductRow extends QueryResultRow {
   product_id: string;
@@ -24,26 +25,6 @@ interface ProductRow extends QueryResultRow {
 
 interface ProductDetailRow extends QueryResultRow {
   product: PublicProductDetail | null;
-}
-
-let pool: Pool | undefined;
-
-function getPool(): Pool {
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) {
-    throw new Error("DATABASE_URL must be configured before querying the catalog.");
-  }
-
-  pool ??= new Pool({
-    connectionString,
-    max: 10,
-    connectionTimeoutMillis: 5000,
-    idleTimeoutMillis: 30000,
-    application_name: "fco-shop",
-    ssl: process.env.DATABASE_SSL === "true" ? { rejectUnauthorized: true } : false,
-  });
-
-  return pool;
 }
 
 function safeInteger(value: number | string, field: string): number {
@@ -94,7 +75,7 @@ async function rollback(client: PoolClient): Promise<void> {
 export function createPostgresPublicCatalogRepository(): PublicCatalogRepository {
   return {
     async searchProducts(query: PublicCatalogQuery): Promise<PublicCatalogPage> {
-      const client = await getPool().connect();
+      const client = await getPostgresPool("fco-shop").connect();
       let transactionOpen = false;
 
       try {
@@ -143,7 +124,7 @@ export function createPostgresPublicCatalogRepository(): PublicCatalogRepository
       }
     },
     async getProductBySlug(slug: string): Promise<PublicProductDetail | null> {
-      const client = await getPool().connect();
+      const client = await getPostgresPool("fco-shop").connect();
       let transactionOpen = false;
 
       try {

@@ -201,6 +201,17 @@ stage_typecheck() {
   [[ "$cat_have" -ge 10 ]] || die "use-case/توابع کاتالوگ غایب‌اند: $cat_have از ۱۰"
   ok "۴ use-case کاتالوگ و ۶ تابع خواندن/جست‌وجوی عمومی موجود است"
 
+  local admin_usecases admin_permissions
+  admin_usecases="$(q "$DB_TYPECHECK" "select count(*) from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where (n.nspname = 'pricing' and p.proname = 'price_set')
+         or (n.nspname = 'cat' and p.proname in ('product_create','product_update'));")"
+  [[ "$admin_usecases" -ge 3 ]] || die "use-caseهای پنل/قیمت ناقص‌اند: $admin_usecases از ۳"
+  admin_permissions="$(q "$DB_TYPECHECK" "select count(*) from iam.permissions
+      where key in ('catalog.product.read','pricing.price.update');")"
+  [[ "$admin_permissions" = "2" ]] || die "مجوزهای پنل/قیمت ناقص‌اند: $admin_permissions از ۲"
+  ok "use-case قیمت نسخه‌دار و مجوزهای کاتالوگ/قیمت پنل موجودند"
+
   local direction_guard
   direction_guard="$(q "$DB_TYPECHECK" "select count(*) from pg_trigger t
       join pg_class c on c.oid = t.tgrelid
@@ -214,7 +225,7 @@ stage_typecheck() {
 }
 
 # -----------------------------------------------------------------------------
-# stage: test — پنج مجموعه منفی/دسترسی
+# stage: test — همه مجموعه‌های SQL منفی/دسترسی
 # -----------------------------------------------------------------------------
 stage_test() {
   step "test | آماده‌سازی $DB_TEST"

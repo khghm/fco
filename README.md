@@ -2,7 +2,7 @@
 
 پلتفرم یکپارچه تجارت و مدیریت کسب‌وکار پوشاک — Self-hosted · فارسی/RTL · Production-grade.
 
-> **وضعیت پروژه:** فاز ۰ طراحی بسته شده (G0) و BR-1 با شاهد M1 پذیرفته شده است. BR-2 در حال اجراست: مدل و منطق کاتالوگ/موجودی و لایهٔ خواندن عمومی در دیتابیس وجود دارند؛ رابط‌های فروشگاه و مدیریت تازه در حال ساخته‌شدن‌اند.
+> **وضعیت پروژه:** فاز ۰ طراحی بسته شده (G0) و BR-1 با شاهد M1 پذیرفته شده است. BR-2 در حال اجراست: کاتالوگ عمومی E2E شده و زیرساخت اولیهٔ API پنل شامل ورود/خروج، محصولات و قیمت نسخه‌دار اضافه شده؛ UI عملیاتی و اجرای job E2E پنل در GitHub هنوز بازند.
 > سامانه هنوز برای فروش واقعی کامل نیست: BR-2 باید از مسیر UI/API end-to-end بسته شود و BR-3 تا BR-5 پیاده نشده‌اند. وضعیت هر گام با شاهد در `docs/Engineering-04/IMPLEMENTATION_START_PLAN.md` ثبت می‌شود.
 
 ## مستندات
@@ -71,7 +71,7 @@ docker compose -f infra/compose/docker-compose.yml ps
 
 ## وضعیت اتصال کاتالوگ
 
-آزمون بازتولیدپذیر در [`catalog-e2e.sh`](scripts/catalog-e2e.sh) دیتابیس تازه‌ای با نام یکتای تولیدشده می‌سازد، ۱۹ Migration را اعمال می‌کند، [`catalog_e2e_seed.sql`](packages/infrastructure/tests/fixtures/catalog_e2e_seed.sql) را اجرا می‌کند، lint/typecheck/test/build را می‌سنجد و سرور production را روی loopback با پورت آزاد بالا می‌آورد. Redis باید در دسترس باشد؛ S3rver با bucket و تصویر fixture موقت توسط آزمون اجرا می‌شود. هیچ دیتابیس یا دادهٔ موجودی حذف/بازنویسی نمی‌شود و دیتابیس E2E برای بررسی نگه داشته می‌شود.
+آزمون بازتولیدپذیر در [`catalog-e2e.sh`](scripts/catalog-e2e.sh) دیتابیس تازه‌ای با نام یکتای تولیدشده می‌سازد، همهٔ Migrationهای موجود (اکنون `0001..0021`) را اعمال می‌کند، [`catalog_e2e_seed.sql`](packages/infrastructure/tests/fixtures/catalog_e2e_seed.sql) را اجرا می‌کند، lint/typecheck/test/build را می‌سنجد و سرور production را روی loopback با پورت آزاد بالا می‌آورد. Redis باید در دسترس باشد؛ S3rver با bucket و تصویر fixture موقت توسط آزمون اجرا می‌شود. هیچ دیتابیس یا دادهٔ موجودی حذف/بازنویسی نمی‌شود و دیتابیس E2E برای بررسی نگه داشته می‌شود.
 
 از ریشهٔ مخزن (با Git Bash در ویندوز) اجرا کنید:
 
@@ -80,7 +80,7 @@ DATABASE_URL=postgresql://fco:fco_local_dev_only@localhost:5432/fco \
   bash scripts/catalog-e2e.sh
 ```
 
-هر دو job (`ci` و `Storefront catalog HTTP E2E`) برای این برش روی commit `27ee1fa` در GitHub Actions #5 موفق شدند: [نتیجهٔ اجرا](https://github.com/khghm/fco/actions/runs/45842656947). پس از pin کردن Compose، هر دو job در CI #7 روی `44e21f3` نیز موفق شدند: [نتیجهٔ اجرا](https://github.com/khghm/fco/actions/runs/45844360646). اجرای محلی روی دیتابیس خودکارنام‌گذاری‌شدهٔ `fco_catalog_e2e_20261126143850_1796` نیز ۱۹ Migration، ۲۴ تست، lint، typecheck و build هر دو اپ را گذراند؛ آزمون HTTP موارد زیر را تأیید کرد:
+هر دو job (`ci` و `Storefront catalog HTTP E2E`) برای برش عمومی اولیه روی commit `27ee1fa` در GitHub Actions #5 موفق شدند: [نتیجهٔ اجرا](https://github.com/khghm/fco/actions/runs/45842656947). پس از pin کردن Compose، هر دو job در CI #7 روی `44e21f3` نیز موفق شدند: [نتیجهٔ اجرا](https://github.com/khghm/fco/actions/runs/45844360646). شاهد محلی تاریخی این نسخه روی دیتابیس `fco_catalog_e2e_20261126143850_1796`، ۱۹ Migration و ۲۴ تست را گذراند؛ آزمون HTTP موارد زیر را تأیید کرد:
 
 ```text
 GET /api/v1/products?q=FCO
@@ -111,7 +111,18 @@ GET /api/v1/products?q=FCO (request 21, E2E limit=20/min)
 429 | code=FCO-1007 | Retry-After present
 ```
 
-در پاسخ‌های API، `request_id` در body و header برابر است؛ هدرهای IP جعلی نیز در `TRUST_PROXY=false` سهمیه را دور نمی‌زنند. E2E از شبیه‌ساز S3rver استفاده می‌کند؛ اتصال به MinIO واقعی/Production هنوز جداگانه باید آزموده شود. Compose تصویر MinIO را روی `quay.io/minio/minio:RELEASE.2024-04-18T19-09-19Z` pin می‌کند، اما pull از Docker Hub در دسترس نبود و Quay برای این تگ `401` داد؛ بنابراین آزمون واقعی MinIO همچنان معوق است. دیتابیس توسعهٔ `fco` تغییر نمی‌کند. پنل مدیریت و خرید هنوز پیاده نشده‌اند؛ وضعیت کامل در `docs/Architecture-02/API_SPECIFICATION.md` آمده است.
+در پاسخ‌های API، `request_id` در body و header برابر است؛ هدرهای IP جعلی نیز در `TRUST_PROXY=false` سهمیه را دور نمی‌زنند. E2E از شبیه‌ساز S3rver استفاده می‌کند؛ اتصال به MinIO واقعی/Production هنوز جداگانه باید آزموده شود. Compose تصویر MinIO را روی `quay.io/minio/minio:RELEASE.2024-04-18T19-09-19Z` pin می‌کند، اما pull از Docker Hub در دسترس نبود و Quay برای این تگ `401` داد؛ بنابراین آزمون واقعی MinIO همچنان معوق است. دیتابیس توسعهٔ `fco` تغییر نمی‌کند.
+
+### وضعیت اولیهٔ پنل مدیریت
+
+زیرساخت API پنل شامل نشست PostgreSQL با کوکی `__Host-fco_sid`، هش رمز Argon2id، بررسی TOTP/replay، محافظت middleware و endpointهای ورود/خروج، فهرست/ایجاد/ویرایش محصول و ثبت قیمت نسخه‌دار است. مجوز use-case در دیتابیس بررسی و عملیات حساس با actor و `request_id` در Audit ثبت می‌شود. صفحهٔ ورود حداقلی دارد. E2E محلی واقعی روی PostgreSQL با ۲۱ Migration، MFA، ورود، CRUD محصول، تغییر قیمت/Audit، رد RBAC و خروج موفق شد؛ دیتابیس `fco_admin_e2e_final_20261126192311` برای بررسی نگه داشته شده است. این آزمون به job مستقل GitHub Actions وصل شده، اما اجرای آن در GitHub هنوز تأیید نشده. دیتاتیبل مدیریتی، رابط تغییر قیمت، راه‌اندازی/بازیابی MFA و rate limit مختص پنل همچنان بازند. جزئیات قرارداد و محدودیت‌ها در [`API_SPECIFICATION.md`](docs/Architecture-02/API_SPECIFICATION.md) آمده است.
+
+برای اجرای دوبارهٔ همین برش از Git Bash روی Windows یا Bash روی Linux، `DATABASE_URL` را به دیتابیس مدیریتی PostgreSQL بدهید. اسکریپت `scripts/admin-api-e2e.sh` یک دیتابیس یکتا می‌سازد، Migrationها و fixtureهای موقت را اعمال می‌کند و دیتابیس را برای بررسی نگه می‌دارد:
+
+```bash
+DATABASE_URL=postgresql://fco:<password>@127.0.0.1:5432/fco \
+  bash scripts/admin-api-e2e.sh
+```
 
 ## قواعد غیرقابل‌مذاکره
 

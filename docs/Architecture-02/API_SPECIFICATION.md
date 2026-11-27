@@ -3,7 +3,7 @@
 > **وضعیت:** تأییدشده (G0) · **نسخه:** v1.3 · **تاریخ:** ۱۴۰۵/۰۹/۰۵
 > **مرجع بالادست:** `Architecture-02/SYSTEM_ARCHITECTURE.md §4` · **مجوزها:** `Business-01/USER_ROLES_AND_PERMISSIONS.md §3`
 > **قاعده:** OpenAPI تک‌منبع در `packages/contracts/openapi.yaml` تولید می‌شود؛ این سند **قرارداد رفتاری** است، OpenAPI **قرارداد شکلی**. اختلاف = باگ.
-> **وضعیت پیاده‌سازی:** برش عمومی BR-2 شامل فهرست و جزئیات محصول، URL امضاشدهٔ رسانه و نرخ‌محدودسازی است؛ پنل مدیریت و سایر endpointها هنوز پیاده‌سازی نشده‌اند. این برش برای انتشار Production کامل نیست.
+> **وضعیت پیاده‌سازی:** برش عمومی BR-2 شامل فهرست و جزئیات محصول، URL امضاشدهٔ رسانه و نرخ‌محدودسازی است. اسکلت API پنل شامل ورود/خروج، فهرست/ایجاد/ویرایش محصول و قیمت نسخه‌دار پیاده شده و E2E محلی PostgreSQL/HTTP سبز است؛ UI عملیاتی، setup/recovery رابط MFA، rate limit اختصاصی ادمین و اجرای job تازه در GitHub هنوز بازند. این برش برای انتشار Production کامل نیست.
 > **مالک قرارداد API و کدهای `FCO-*`.** `SYSTEM_ARCHITECTURE §4` فقط خلاصه معماری است.
 
 ---
@@ -43,9 +43,8 @@
 
 | متد | مسیر | مجوز | توضیح |
 |---|---|---|---|
-| POST | `/auth/staff/login` | — | موبایل/ایمیل + رمز؛ پاسخ: `mfa_required` یا نشست |
-| POST | `/auth/staff/mfa/verify` | — | تأیید TOTP؛ نرخ‌محدود |
-| POST | `/auth/staff/logout` | نشست | ابطال نشست جاری |
+| POST | `/admin/auth/login` | — | ایمیل + رمز و در صورت نیاز TOTP؛ صدور نشست |
+| POST | `/admin/auth/logout` | نشست | ابطال نشست جاری |
 | GET | `/auth/session` | نشست | کاربر، نقش‌ها، مجوزها، `mfa_verified` |
 | POST | `/auth/customer/otp/request` | — | ارسال OTP؛ پاسخ یکسان برای موبایل موجود/غیرموجود |
 | POST | `/auth/customer/otp/verify` | — | ورود/ثبت‌نام مشتری |
@@ -53,6 +52,8 @@
 | POST | `/auth/password/reset` | — | با توکن یک‌بارمصرف |
 | GET | `/iam/sessions` | `iam.session.revoke` | نشست‌های کاربر |
 | DELETE | `/iam/sessions/{id}` | `iam.session.revoke` | ابطال راه‌دور |
+
+در نسخهٔ اولیهٔ پنل، TOTP در همان درخواست ورود بررسی می‌شود؛ endpoint جداگانهٔ `/auth/staff/mfa/verify` و `/auth/session` هنوز پیاده نشده‌اند.
 
 ---
 
@@ -111,7 +112,22 @@ slug باید با الگوی `^[a-z0-9]+(-[a-z0-9]+)*$` سازگار باشد؛
 }
 ```
 
-صفحهٔ فارسی `/products/{slug}` همین جزئیات، تصویر و قیمت/موجودی تنوع‌ها را نشان می‌دهد. محدودیت نرخ عمومی فروشگاه روی صفحهٔ کاتالوگ، صفحهٔ محصول و API محصول اعمال می‌شود: ۱۰۰ درخواست/IP/دقیقه به‌صورت پیش‌فرض؛ E2E مقدار را به ۲۰ کاهش می‌دهد. پاسخ‌های API شامل `X-RateLimit-Limit`، `X-RateLimit-Remaining`، `X-RateLimit-Reset` و در `429`، `Retry-After` و `FCO-1007` هستند. Redis منبع شمارندهٔ مشترک است؛ هنگام قطعی آن از fallback حافظه‌ای همان نمونه استفاده می‌شود. پنل مدیریت و دیگر endpointها همچنان بازند؛ این قابلیت‌ها به‌تنهایی معیار پذیرش کامل BR-2 یا آمادگی Production نیستند.
+صفحهٔ فارسی `/products/{slug}` همین جزئیات، تصویر و قیمت/موجودی تنوع‌ها را نشان می‌دهد. محدودیت نرخ عمومی فروشگاه روی صفحهٔ کاتالوگ، صفحهٔ محصول و API محصول اعمال می‌شود: ۱۰۰ درخواست/IP/دقیقه به‌صورت پیش‌فرض؛ E2E مقدار را به ۲۰ کاهش می‌دهد. پاسخ‌های API شامل `X-RateLimit-Limit`، `X-RateLimit-Remaining`، `X-RateLimit-Reset` و در `429`، `Retry-After` و `FCO-1007` هستند. Redis منبع شمارندهٔ مشترک است؛ هنگام قطعی آن از fallback حافظه‌ای همان نمونه استفاده می‌شود. rate limit اختصاصی پنل و سایر endpointها هنوز بازند؛ این قابلیت‌ها به‌تنهایی معیار پذیرش کامل BR-2 یا آمادگی Production نیستند.
+
+#### قرارداد پیاده‌سازی‌شده: API پایهٔ پنل محصول/قیمت
+
+همهٔ مسیرهای `/api/v1/admin/*` (به‌جز login) و صفحات `/admin/*` از middleware نشست PostgreSQL محافظت می‌شوند؛ مجوز هر use-case دوباره در PostgreSQL با `iam.authorize` بررسی می‌شود و شناسهٔ کاربر نشست، actor عملیات است. POST/PATCH علاوه بر کوکی نشست، `Origin` هم‌مبدأ می‌خواهند. هر پاسخ API شناسهٔ درخواست را در `X-Request-Id` و بدنه دارد.
+
+| متد | مسیر اجراشده | ورودی/رفتار |
+|---|---|---|
+| POST | `/api/v1/admin/auth/login` | `email`, `password`, و `totp` اختیاری؛ نشست با کوکی `__Host-fco_sid` (`Secure`, `HttpOnly`, `SameSite=Lax`)؛ نقش نیازمند MFA بدون عامل تأییدشده مسدود می‌ماند |
+| POST | `/api/v1/admin/auth/logout` | نشست جاری را در PostgreSQL باطل و کوکی را پاک می‌کند |
+| GET | `/api/v1/admin/products?limit=50&offset=0` | سقف `limit=100`؛ نیازمند `catalog.product.read` |
+| POST | `/api/v1/admin/products` | `slug`, `title`, `description`, `brand_id`, `category_id`, `attributes`; مجوز داخل `cat.product_create` |
+| PATCH | `/api/v1/admin/products/{id}` | کل وضعیت قابل‌ویرایش محصول را می‌گیرد؛ `If-Match: "<version>"` الزامی، تعارض نسخه `409 / FCO-1064`؛ مجوز داخل `cat.product_update` |
+| POST | `/api/v1/admin/variants/{id}/prices` | `amount_rial`, `effective_from`, `compare_at_rial?`, `channel?`, `reason?`; مبلغ عدد صحیح ریال، کانال پیش‌فرض `web`; مجوز `pricing.price.update` و Audit با actor/request_id در همان تراکنش |
+
+Login با Argon2id بررسی می‌شود؛ نقش‌های MFAدار بدون factor معتبر وارد نمی‌شوند و TOTP مصرف‌شده دوباره پذیرفته نمی‌شود. `SESSION_TOKEN_PEPPER` و `MFA_ENCRYPTION_KEY` باید در محیط اجرا به‌صورت secret تصادفی تنظیم شوند؛ نمونه‌های `.env.example` برای Production نیستند. محدودکردن تلاش ورود در دیتابیس وجود دارد، اما rate limit اختصاصی پنل هنوز اعمال نشده است. صفحهٔ ورود و E2E محلی PostgreSQL/HTTP پیاده/سبز هستند؛ صفحهٔ عملیاتی محصولات/قیمت و راه‌اندازی و بازیابی MFA هنوز بازند، و CI job تازه هنوز در GitHub اجرا نشده است.
 
 ### ۳.۲ قیمت و تخفیف
 | متد | مسیر | مجوز | نکته |
