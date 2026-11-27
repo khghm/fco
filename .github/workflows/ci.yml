@@ -36,6 +36,9 @@ jobs:
       POSTGRES_USER: fco
       POSTGRES_DB: fco
       PSQL: psql
+      S3_ENDPOINT: http://localhost:9000
+      S3_BUCKET: fco-media
+      S3_REGION: us-east-1
 
     steps:
       - uses: actions/checkout@v4
