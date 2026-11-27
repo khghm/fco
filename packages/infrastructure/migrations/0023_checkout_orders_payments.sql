@@ -215,11 +215,6 @@ create table pay.transactions (
 
 create index payment_transactions_order_idx on pay.transactions (order_id, created_at desc);
 
-alter table inv.reservations
-  add constraint reservations_order_line_fk
-  foreign key (order_line_id) references oms.order_lines (id) on delete restrict
-  not valid;
-
 create function oms.tax_amount_rial(p_subtotal_rial bigint, p_shipping_rial bigint)
 returns bigint
 language sql immutable set search_path = pg_catalog as $$

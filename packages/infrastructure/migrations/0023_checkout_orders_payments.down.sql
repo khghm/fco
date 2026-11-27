@@ -1,6 +1,3 @@
-alter table inv.reservations
-  drop constraint if exists reservations_order_line_fk;
-
 drop function if exists pay.complete_mock_payment(uuid, bytea, text, uuid, text);
 drop function if exists pay.mock_payment_details(uuid);
 drop function if exists inv.confirm_order_reservations(uuid);
