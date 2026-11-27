@@ -3,6 +3,7 @@ import type { PoolClient, QueryResultRow } from "pg";
 import { getPostgresPool } from "./postgres";
 
 export const STAFF_SESSION_COOKIE = "__Host-fco_sid";
+export const STAFF_MFA_SETUP_COOKIE = "__Host-fco_mfa_setup";
 
 export interface StaffSession {
   sid: string;

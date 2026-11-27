@@ -72,12 +72,20 @@ export function logAdminApiFailure(
   requestId: string,
   error: unknown,
 ): void {
+  const errorCode =
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof error.code === "string"
+      ? error.code
+      : undefined;
   process.stderr.write(
     `${JSON.stringify({
       level: "error",
       event,
       request_id: requestId,
       error_type: error instanceof Error ? error.name : "UnknownError",
+      ...(errorCode ? { error_code: errorCode } : {}),
     })}\n`,
   );
 }

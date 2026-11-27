@@ -3,7 +3,7 @@
 > **وضعیت:** تأییدشده (G0) · **نسخه:** v1.3 · **تاریخ:** ۱۴۰۵/۰۹/۰۵
 > **مرجع بالادست:** `Architecture-02/SYSTEM_ARCHITECTURE.md §4` · **مجوزها:** `Business-01/USER_ROLES_AND_PERMISSIONS.md §3`
 > **قاعده:** OpenAPI تک‌منبع در `packages/contracts/openapi.yaml` تولید می‌شود؛ این سند **قرارداد رفتاری** است، OpenAPI **قرارداد شکلی**. اختلاف = باگ.
-> **وضعیت پیاده‌سازی:** برش عمومی BR-2 شامل فهرست و جزئیات محصول، URL امضاشدهٔ رسانه و نرخ‌محدودسازی است. اسکلت API پنل شامل ورود/خروج، فهرست/ایجاد/ویرایش محصول و قیمت نسخه‌دار پیاده شده و E2E محلی PostgreSQL/HTTP سبز است؛ UI عملیاتی، setup/recovery رابط MFA، rate limit اختصاصی ادمین و اجرای job تازه در GitHub هنوز بازند. این برش برای انتشار Production کامل نیست.
+> **وضعیت پیاده‌سازی:** صفحه‌های پنل `/admin/products`، `/admin/settings/security` و `/mfa/setup` به endpointهای محصول/تنوع/قیمت و MFA متصل‌اند. E2E محلی PostgreSQL/Redis/HTTP این صفحات، MFA/recovery، rate limit ورود، Audit و RBAC را تأیید می‌کند. اجرای CI برای commit تازه و اتصال MinIO واقعی هنوز تأیید نشده‌اند؛ تعویض/ابطال عامل MFA در صورت گم‌شدن دستگاه نیز workflow جداگانه می‌خواهد. این برش به‌تنهایی آمادگی Production کامل نیست.
 > **مالک قرارداد API و کدهای `FCO-*`.** `SYSTEM_ARCHITECTURE §4` فقط خلاصه معماری است.
 
 ---
@@ -53,7 +53,7 @@
 | GET | `/iam/sessions` | `iam.session.revoke` | نشست‌های کاربر |
 | DELETE | `/iam/sessions/{id}` | `iam.session.revoke` | ابطال راه‌دور |
 
-در نسخهٔ اولیهٔ پنل، TOTP در همان درخواست ورود بررسی می‌شود؛ endpoint جداگانهٔ `/auth/staff/mfa/verify` و `/auth/session` هنوز پیاده نشده‌اند.
+در پنل پیاده‌شده، TOTP یا کد بازیابی در `POST /api/v1/admin/auth/login` بررسی می‌شود؛ وضعیت، enrollment و تأیید MFA از `/api/v1/admin/auth/mfa`, `/setup` و `/verify` انجام می‌شود. endpoint عمومی‌تر `/auth/session` و چرخهٔ مدیریتی تعویض عامل MFA هنوز در این برش وجود ندارند.
 
 ---
 
@@ -112,7 +112,7 @@ slug باید با الگوی `^[a-z0-9]+(-[a-z0-9]+)*$` سازگار باشد؛
 }
 ```
 
-صفحهٔ فارسی `/products/{slug}` همین جزئیات، تصویر و قیمت/موجودی تنوع‌ها را نشان می‌دهد. محدودیت نرخ عمومی فروشگاه روی صفحهٔ کاتالوگ، صفحهٔ محصول و API محصول اعمال می‌شود: ۱۰۰ درخواست/IP/دقیقه به‌صورت پیش‌فرض؛ E2E مقدار را به ۲۰ کاهش می‌دهد. پاسخ‌های API شامل `X-RateLimit-Limit`، `X-RateLimit-Remaining`، `X-RateLimit-Reset` و در `429`، `Retry-After` و `FCO-1007` هستند. Redis منبع شمارندهٔ مشترک است؛ هنگام قطعی آن از fallback حافظه‌ای همان نمونه استفاده می‌شود. rate limit اختصاصی پنل و سایر endpointها هنوز بازند؛ این قابلیت‌ها به‌تنهایی معیار پذیرش کامل BR-2 یا آمادگی Production نیستند.
+صفحهٔ فارسی `/products/{slug}` همین جزئیات، تصویر و قیمت/موجودی تنوع‌ها را نشان می‌دهد. محدودیت نرخ عمومی فروشگاه روی صفحهٔ کاتالوگ، صفحهٔ محصول و API محصول اعمال می‌شود: ۱۰۰ درخواست/IP/دقیقه به‌صورت پیش‌فرض؛ E2E مقدار را به ۲۰ کاهش می‌دهد. پاسخ‌های API شامل `X-RateLimit-Limit`، `X-RateLimit-Remaining`، `X-RateLimit-Reset` و در `429`، `Retry-After` و `FCO-1007` هستند. Redis منبع شمارندهٔ مشترک است؛ هنگام قطعی آن از fallback حافظه‌ای همان نمونه استفاده می‌شود. ورود پنل نیز ۵ تلاش/۱۵ دقیقه با Redis و `429 / FCO-1007` محدود شده؛ سایر endpointهای پنل در این برش rate limit جداگانه ندارند. این قابلیت‌ها به‌تنهایی معیار پذیرش کامل BR-2 یا آمادگی Production نیستند.
 
 #### قرارداد پیاده‌سازی‌شده: API پایهٔ پنل محصول/قیمت
 
@@ -120,14 +120,20 @@ slug باید با الگوی `^[a-z0-9]+(-[a-z0-9]+)*$` سازگار باشد؛
 
 | متد | مسیر اجراشده | ورودی/رفتار |
 |---|---|---|
-| POST | `/api/v1/admin/auth/login` | `email`, `password`, و `totp` اختیاری؛ نشست با کوکی `__Host-fco_sid` (`Secure`, `HttpOnly`, `SameSite=Lax`)؛ نقش نیازمند MFA بدون عامل تأییدشده مسدود می‌ماند |
+| POST | `/api/v1/admin/auth/login` | `email`, `password`, و یکی از `totp` یا `recovery_code` اختیاری؛ نشست با کوکی `__Host-fco_sid` (`Secure`, `HttpOnly`, `SameSite=Lax`)؛ راه‌اندازی اجباری MFA چالش محدودشده می‌دهد؛ پس از ۵ تلاش در ۱۵ دقیقه `429 / FCO-1007` و `Retry-After` |
 | POST | `/api/v1/admin/auth/logout` | نشست جاری را در PostgreSQL باطل و کوکی را پاک می‌کند |
+| GET | `/api/v1/admin/auth/mfa` | وضعیت عامل و شمار کدهای بازیابی؛ نشست معتبر یا challenge راه‌اندازی لازم است |
+| POST | `/api/v1/admin/auth/mfa/setup` | ساخت secret و `otpauth_url` موقت برای اسکن QR/ورود دستی؛ پاسخ `no-store` |
+| POST | `/api/v1/admin/auth/mfa/verify` | `{ "code": "123456" }`; تأیید TOTP، فعال‌سازی MFA و ارائهٔ یک‌بارهٔ ۱۰ کد بازیابی؛ challenge راه‌اندازی در صورت موفقیت نشست صادر می‌کند |
 | GET | `/api/v1/admin/products?limit=50&offset=0` | سقف `limit=100`؛ نیازمند `catalog.product.read` |
+| GET | `/api/v1/admin/products/{id}` | جزئیات قابل‌ویرایش محصول؛ محصول آرشیوشده/ناموجود `404` |
 | POST | `/api/v1/admin/products` | `slug`, `title`, `description`, `brand_id`, `category_id`, `attributes`; مجوز داخل `cat.product_create` |
 | PATCH | `/api/v1/admin/products/{id}` | کل وضعیت قابل‌ویرایش محصول را می‌گیرد؛ `If-Match: "<version>"` الزامی، تعارض نسخه `409 / FCO-1064`؛ مجوز داخل `cat.product_update` |
+| GET | `/api/v1/admin/products/{id}/variants` | تنوع‌ها به‌همراه تاریخچهٔ تغییرناپذیر قیمت؛ نیازمند `catalog.product.read` |
+| POST | `/api/v1/admin/products/{id}/variants` | `sku`, `barcode?`, `weight_g?`; مجوز داخل `cat.variant_create` |
 | POST | `/api/v1/admin/variants/{id}/prices` | `amount_rial`, `effective_from`, `compare_at_rial?`, `channel?`, `reason?`; مبلغ عدد صحیح ریال، کانال پیش‌فرض `web`; مجوز `pricing.price.update` و Audit با actor/request_id در همان تراکنش |
 
-Login با Argon2id بررسی می‌شود؛ نقش‌های MFAدار بدون factor معتبر وارد نمی‌شوند و TOTP مصرف‌شده دوباره پذیرفته نمی‌شود. `SESSION_TOKEN_PEPPER` و `MFA_ENCRYPTION_KEY` باید در محیط اجرا به‌صورت secret تصادفی تنظیم شوند؛ نمونه‌های `.env.example` برای Production نیستند. محدودکردن تلاش ورود در دیتابیس وجود دارد، اما rate limit اختصاصی پنل هنوز اعمال نشده است. صفحهٔ ورود و E2E محلی PostgreSQL/HTTP پیاده/سبز هستند؛ صفحهٔ عملیاتی محصولات/قیمت و راه‌اندازی و بازیابی MFA هنوز بازند، و CI job تازه هنوز در GitHub اجرا نشده است.
+Login با Argon2id بررسی می‌شود؛ TOTP مصرف‌شده و کد بازیابی مصرف‌شده دوباره پذیرفته نمی‌شوند. کدهای بازیابی به‌صورت HMAC ذخیره می‌شوند. `SESSION_TOKEN_PEPPER` و `MFA_ENCRYPTION_KEY` باید در محیط اجرا به‌صورت secret تصادفی تنظیم شوند؛ نمونه‌های `.env.example` برای Production نیستند. rate limit پنل از Redis مشترک استفاده می‌کند و در صورت نبودن/قطع Redis به limiter حافظه‌ای هر نمونه تنزل می‌کند؛ برای استقرار چندنمونه‌ای باید Redis در دسترس و پایش شود. خطای ورودی `400 / FCO-1001`، نبود مجوز `403 / FCO-1003`، خطای ورود `401` و عبور از سقف ورود `429 / FCO-1007` است؛ پاسخ API، `request_id` را در body و `X-Request-Id` دارد. E2E محلی HTTP، پاسخ واقعی صفحات محصول/امنیت/setup و مسیرهای API را پوشش می‌دهد؛ آزمون مرورگر تعاملی و اجرای workflow در GitHub برای commit جاری هنوز انجام نشده‌اند.
 
 ### ۳.۲ قیمت و تخفیف
 | متد | مسیر | مجوز | نکته |

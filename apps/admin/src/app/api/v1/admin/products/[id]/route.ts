@@ -1,4 +1,7 @@
-import { updateAdminProduct } from "@fco/infrastructure/admin-catalog";
+import {
+  getAdminProduct,
+  updateAdminProduct,
+} from "@fco/infrastructure/admin-catalog";
 import {
   adminFailureResponse,
   apiError,
@@ -15,6 +18,34 @@ export const dynamic = "force-dynamic";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export async function GET(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+): Promise<Response> {
+  const requestId = requestIdFrom(request);
+  try {
+    const { id } = await context.params;
+    if (!isUuid(id)) {
+      return apiError(400, "FCO-1001", "شناسهٔ محصول معتبر نیست.", requestId);
+    }
+    const session = await adminSessionFromRequest(request);
+    if (!session) {
+      return apiError(401, "FCO-1005", "نشست معتبر نیست.", requestId);
+    }
+    const product = await getAdminProduct(session.uid, id);
+    if (!product) {
+      return apiError(404, "FCO-1004", "محصول پیدا نشد.", requestId);
+    }
+    return Response.json(
+      { data: product, meta: { request_id: requestId } },
+      { headers: { "Cache-Control": "no-store", "X-Request-Id": requestId } },
+    );
+  } catch (error) {
+    logAdminApiFailure("admin_product_get_failed", requestId, error);
+    return adminFailureResponse(error, requestId);
+  }
 }
 
 export async function PATCH(

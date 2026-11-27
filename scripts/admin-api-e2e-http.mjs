@@ -5,12 +5,25 @@ import { Client } from "pg";
 const baseUrl = process.env.FCO_ADMIN_E2E_BASE_URL;
 const databaseUrl = process.env.DATABASE_URL;
 const email = process.env.FCO_E2E_STAFF_EMAIL ?? "admin-e2e@fco.invalid";
+const operatorEmail = process.env.FCO_E2E_OPERATOR_EMAIL ?? "operator-e2e@fco.invalid";
+const setupEmail = process.env.FCO_E2E_SETUP_EMAIL ?? "mfa-setup-e2e@fco.invalid";
 const password = process.env.FCO_E2E_STAFF_PASSWORD;
 const variantId = process.env.FCO_E2E_VARIANT_ID;
+const productId = process.env.FCO_E2E_PRODUCT_ID;
 const adminId = process.env.FCO_E2E_ADMIN_ID;
 const operatorId = process.env.FCO_E2E_OPERATOR_ID;
+const setupStaffId = process.env.FCO_E2E_SETUP_STAFF_ID;
 const totpSecret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
-if (!baseUrl || !databaseUrl || !password || !variantId || !adminId || !operatorId) {
+if (
+  !baseUrl ||
+  !databaseUrl ||
+  !password ||
+  !variantId ||
+  !productId ||
+  !adminId ||
+  !operatorId ||
+  !setupStaffId
+) {
   throw new Error("Admin API E2E environment is incomplete.");
 }
 
@@ -69,6 +82,13 @@ function requestHeaders(origin, cookie) {
   };
 }
 
+function cookieFrom(response, name) {
+  const value = response.headers.get("set-cookie")?.match(
+    new RegExp(`${name}=([^;]+)`),
+  )?.[1];
+  return value ? `${name}=${value}` : null;
+}
+
 const loginResponse = await fetchReady(`${baseUrl}/login`);
 assert.equal(loginResponse.status, 200);
 
@@ -107,6 +127,18 @@ assert.match(login.headers.get("set-cookie") ?? "", /Secure/);
 assert.match(login.headers.get("set-cookie") ?? "", /SameSite=Lax/);
 console.log(`PASS HTTP staff login + MFA | status=200 request_id=${loginRequestId}`);
 
+const productPage = await fetch(`${baseUrl}/admin/products`, {
+  headers: requestHeaders(baseUrl, cookie),
+});
+assert.equal(productPage.status, 200);
+assert.match(await productPage.text(), /مدیریت محصول و قیمت/);
+const securityPage = await fetch(`${baseUrl}/admin/settings/security`, {
+  headers: requestHeaders(baseUrl, cookie),
+});
+assert.equal(securityPage.status, 200);
+assert.match(await securityPage.text(), /امنیت و تأیید دومرحله‌ای/);
+console.log("PASS HTTP admin product + security pages | status=200");
+
 const list = await fetch(`${baseUrl}/api/v1/admin/products?limit=20`, {
   headers: requestHeaders(baseUrl, cookie),
 });
@@ -136,6 +168,15 @@ assert.equal(create.status, 201);
 assert.equal(create.headers.get("x-request-id"), createBody.meta.request_id);
 console.log(`PASS HTTP admin product create | status=201 id=${createBody.data.id}`);
 
+const detail = await fetch(`${baseUrl}/api/v1/admin/products/${createBody.data.id}`, {
+  headers: requestHeaders(baseUrl, cookie),
+});
+const detailBody = await detail.json();
+assert.equal(detail.status, 200);
+assert.equal(detailBody.data.id, createBody.data.id);
+assert.equal(detail.headers.get("x-request-id"), detailBody.meta.request_id);
+console.log("PASS HTTP admin product detail | status=200");
+
 const update = await fetch(
   `${baseUrl}/api/v1/admin/products/${createBody.data.id}`,
   {
@@ -159,6 +200,28 @@ assert.equal(update.status, 200);
 assert.equal(updateBody.data.version, 2);
 console.log("PASS HTTP optimistic product update | status=200 version=2");
 
+const createVariant = await fetch(
+  `${baseUrl}/api/v1/admin/products/${createBody.data.id}/variants`,
+  {
+    method: "POST",
+    headers: {
+      ...requestHeaders(baseUrl, cookie),
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ sku: "ADMIN-E2E-CREATED-SKU", weight_g: 450 }),
+  },
+);
+const createVariantBody = await createVariant.json();
+assert.equal(createVariant.status, 201);
+const createdVariants = await fetch(
+  `${baseUrl}/api/v1/admin/products/${createBody.data.id}/variants`,
+  { headers: requestHeaders(baseUrl, cookie) },
+);
+const createdVariantsBody = await createdVariants.json();
+assert.equal(createdVariants.status, 200);
+assert.ok(createdVariantsBody.data.some((item) => item.id === createVariantBody.data.id));
+console.log("PASS HTTP variant create + list | status=201/200");
+
 const priceRequest = await fetch(
   `${baseUrl}/api/v1/admin/variants/${variantId}/prices`,
   {
@@ -180,6 +243,20 @@ const priceRequestId = priceBody.meta.request_id;
 assert.equal(priceRequest.headers.get("x-request-id"), priceRequestId);
 console.log(`PASS HTTP versioned price | status=201 request_id=${priceRequestId}`);
 
+const variantHistory = await fetch(
+  `${baseUrl}/api/v1/admin/products/${productId}/variants`,
+  { headers: requestHeaders(baseUrl, cookie) },
+);
+const variantHistoryBody = await variantHistory.json();
+assert.equal(variantHistory.status, 200);
+const seededVariant = variantHistoryBody.data.find((item) => item.id === variantId);
+assert.equal(seededVariant.prices.length, 2);
+assert.deepEqual(
+  seededVariant.prices.map((item) => item.amount_rial).sort((a, b) => a - b),
+  [100000, 125000],
+);
+console.log("PASS HTTP admin price history | 2 immutable versions displayed");
+
 const operatorLogin = await fetch(`${baseUrl}/api/v1/admin/auth/login`, {
   method: "POST",
   headers: {
@@ -187,7 +264,7 @@ const operatorLogin = await fetch(`${baseUrl}/api/v1/admin/auth/login`, {
     "content-type": "application/json",
   },
   body: JSON.stringify({
-    email: "operator-e2e@fco.invalid",
+    email: operatorEmail,
     password,
   }),
 });
@@ -201,6 +278,126 @@ const forbidden = await fetch(`${baseUrl}/api/v1/admin/products`, {
 assert.equal(forbidden.status, 403);
 assert.equal((await forbidden.json()).error.code, "FCO-1003");
 console.log("PASS HTTP RBAC denial | status=403 code=FCO-1003");
+
+const setupLogin = await fetch(`${baseUrl}/api/v1/admin/auth/login`, {
+  method: "POST",
+  headers: {
+    ...requestHeaders(baseUrl),
+    "content-type": "application/json",
+  },
+  body: JSON.stringify({ email: setupEmail, password }),
+});
+const setupLoginBody = await setupLogin.json();
+assert.equal(setupLogin.status, 403);
+assert.equal(setupLoginBody.error.code, "FCO-1006");
+const setupCookie = cookieFrom(setupLogin, "__Host-fco_mfa_setup");
+assert.ok(setupCookie, "MFA setup challenge cookie was not set");
+const setupPage = await fetch(`${baseUrl}/mfa/setup`, {
+  headers: requestHeaders(baseUrl, setupCookie),
+});
+assert.equal(setupPage.status, 200);
+assert.match(await setupPage.text(), /راه‌اندازی تأیید دومرحله‌ای/);
+const setupStatus = await fetch(`${baseUrl}/api/v1/admin/auth/mfa`, {
+  headers: requestHeaders(baseUrl, setupCookie),
+});
+assert.equal(setupStatus.status, 200);
+assert.equal((await setupStatus.json()).data.setup_challenge, true);
+
+const setupBegin = await fetch(`${baseUrl}/api/v1/admin/auth/mfa/setup`, {
+  method: "POST",
+  headers: requestHeaders(baseUrl, setupCookie),
+});
+const setupBeginBody = await setupBegin.json();
+assert.equal(setupBegin.status, 200);
+assert.match(setupBeginBody.data.otpauth_url, /^otpauth:\/\/totp\//);
+
+const setupVerify = await fetch(`${baseUrl}/api/v1/admin/auth/mfa/verify`, {
+  method: "POST",
+  headers: {
+    ...requestHeaders(baseUrl, setupCookie),
+    "content-type": "application/json",
+  },
+  body: JSON.stringify({ code: totpCode(setupBeginBody.data.secret) }),
+});
+const setupVerifyBody = await setupVerify.json();
+assert.equal(setupVerify.status, 200);
+assert.equal(setupVerifyBody.data.recovery_codes.length, 10);
+assert.equal(setupVerifyBody.data.session_established, true);
+const setupSessionCookie = cookieFrom(setupVerify, "__Host-fco_sid");
+assert.ok(setupSessionCookie, "MFA setup did not issue the authenticated session");
+console.log("PASS HTTP MFA enrollment + TOTP verification | 10 recovery codes issued");
+
+const enabledStatus = await fetch(`${baseUrl}/api/v1/admin/auth/mfa`, {
+  headers: requestHeaders(baseUrl, setupSessionCookie),
+});
+assert.equal(enabledStatus.status, 200);
+assert.equal((await enabledStatus.json()).data.enabled, true);
+
+const setupLogout = await fetch(`${baseUrl}/api/v1/admin/auth/logout`, {
+  method: "POST",
+  headers: requestHeaders(baseUrl, setupSessionCookie),
+});
+assert.equal(setupLogout.status, 204);
+const recoveryLogin = await fetch(`${baseUrl}/api/v1/admin/auth/login`, {
+  method: "POST",
+  headers: {
+    ...requestHeaders(baseUrl),
+    "content-type": "application/json",
+  },
+  body: JSON.stringify({
+    email: setupEmail,
+    password,
+    recovery_code: setupVerifyBody.data.recovery_codes[0],
+  }),
+});
+assert.equal(recoveryLogin.status, 200);
+const recoverySessionCookie = cookieFrom(recoveryLogin, "__Host-fco_sid");
+assert.ok(recoverySessionCookie);
+const recoveryLogout = await fetch(`${baseUrl}/api/v1/admin/auth/logout`, {
+  method: "POST",
+  headers: requestHeaders(baseUrl, recoverySessionCookie),
+});
+assert.equal(recoveryLogout.status, 204);
+const reusedRecoveryLogin = await fetch(`${baseUrl}/api/v1/admin/auth/login`, {
+  method: "POST",
+  headers: {
+    ...requestHeaders(baseUrl),
+    "content-type": "application/json",
+  },
+  body: JSON.stringify({
+    email: setupEmail,
+    password,
+    recovery_code: setupVerifyBody.data.recovery_codes[0],
+  }),
+});
+assert.equal(reusedRecoveryLogin.status, 401);
+assert.equal((await reusedRecoveryLogin.json()).error.code, "FCO-1006");
+console.log("PASS HTTP one-time recovery login | first=200 reuse=401");
+
+const rateLimitEmail = `rate-limit-${Date.now()}@fco.invalid`;
+for (let attempt = 1; attempt <= 5; attempt += 1) {
+  const rejected = await fetch(`${baseUrl}/api/v1/admin/auth/login`, {
+    method: "POST",
+    headers: {
+      ...requestHeaders(baseUrl),
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ email: rateLimitEmail, password: "wrong-password" }),
+  });
+  assert.equal(rejected.status, 401, `login attempt ${attempt} should be rejected as invalid`);
+}
+const rateLimited = await fetch(`${baseUrl}/api/v1/admin/auth/login`, {
+  method: "POST",
+  headers: {
+    ...requestHeaders(baseUrl),
+    "content-type": "application/json",
+  },
+  body: JSON.stringify({ email: rateLimitEmail, password: "wrong-password" }),
+});
+assert.equal(rateLimited.status, 429);
+assert.equal((await rateLimited.json()).error.code, "FCO-1007");
+assert.ok(Number(rateLimited.headers.get("retry-after")) > 0);
+console.log("PASS HTTP admin login rate limit | sixth attempt=429 with Retry-After");
 
 const logout = await fetch(`${baseUrl}/api/v1/admin/auth/logout`, {
   method: "POST",
@@ -244,6 +441,24 @@ try {
     [adminId, priceRequestId],
   );
   assert.equal(priceAudit.rows[0].count, 1);
+  const mfaAudit = await db.query(
+    `select count(*) filter (where action = 'auth.mfa_enabled')::int as enabled_count,
+            count(*) filter (where action = 'auth.mfa_recovery_used')::int as recovery_count
+       from sys.audit_log
+      where actor_id = $1::uuid
+        and request_id = any($2::text[])`,
+    [setupStaffId, [setupVerify.headers.get("x-request-id"), recoveryLogin.headers.get("x-request-id"), reusedRecoveryLogin.headers.get("x-request-id")]],
+  );
+  assert.ok(mfaAudit.rows[0].enabled_count >= 1);
+  assert.equal(mfaAudit.rows[0].recovery_count, 1);
+  const remainingCodes = await db.query(
+    `select count(*)::int as count
+       from iam.mfa_factors
+      where user_id = $1::uuid and kind = 'recovery_code'
+        and confirmed_at is not null and disabled_at is null`,
+    [setupStaffId],
+  );
+  assert.equal(remainingCodes.rows[0].count, 9);
   const history = await db.query(
     `select count(*)::int as count,
             bool_and(amount_rial in (100000, 125000)) as amounts_preserved

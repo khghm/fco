@@ -39,6 +39,7 @@ export PGDATABASE="$DB_NAME"
 export FCO_PG_CONTAINER="$CONTAINER"
 export POSTGRES_USER="$DB_USER"
 export PSQL="$PSQL_BIN"
+export REDIS_URL="${REDIS_URL:-redis://127.0.0.1:6379}"
 export DATABASE_URL="$(
   DATABASE_URL="$DATABASE_URL" DB_NAME="$DB_NAME" node -e '
     const url = new URL(process.env.DATABASE_URL);
@@ -49,7 +50,9 @@ export DATABASE_URL="$(
 export SESSION_TOKEN_PEPPER="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(48).toString("base64url"))')"
 export MFA_ENCRYPTION_KEY="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("base64"))')"
 export FCO_E2E_STAFF_PASSWORD="Temp-$(node -e 'process.stdout.write(require("node:crypto").randomBytes(24).toString("base64url"))')-Aa1!"
-export FCO_E2E_STAFF_EMAIL="${FCO_E2E_STAFF_EMAIL:-admin-e2e@fco.invalid}"
+export FCO_E2E_STAFF_EMAIL="${FCO_E2E_STAFF_EMAIL:-admin-${DB_NAME}@fco.invalid}"
+export FCO_E2E_OPERATOR_EMAIL="${FCO_E2E_OPERATOR_EMAIL:-operator-${DB_NAME}@fco.invalid}"
+export FCO_E2E_SETUP_EMAIL="${FCO_E2E_SETUP_EMAIL:-setup-${DB_NAME}@fco.invalid}"
 export TRUST_PROXY=false
 
 printf 'Admin API E2E database: %s\n' "$DB_NAME"
@@ -57,6 +60,10 @@ bash "$ROOT/scripts/db-migrate.sh" up
 SEED_RESULT="$(node "$ROOT/scripts/admin-api-e2e-seed.mjs")"
 export FCO_E2E_ADMIN_ID="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).adminId)' "$SEED_RESULT")"
 export FCO_E2E_OPERATOR_ID="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).operatorId)' "$SEED_RESULT")"
+export FCO_E2E_SETUP_STAFF_ID="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).setupStaffId)' "$SEED_RESULT")"
+export FCO_E2E_OPERATOR_EMAIL="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).operatorEmail)' "$SEED_RESULT")"
+export FCO_E2E_SETUP_EMAIL="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).setupStaffEmail)' "$SEED_RESULT")"
+export FCO_E2E_PRODUCT_ID="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).productId)' "$SEED_RESULT")"
 export FCO_E2E_VARIANT_ID="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).variantId)' "$SEED_RESULT")"
 
 npm --workspace @fco/admin run build

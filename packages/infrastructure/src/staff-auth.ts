@@ -24,8 +24,16 @@ export type StaffLoginResult =
   | { kind: "authenticated"; userId: string; token: string; expiresAt: Date }
   | { kind: "invalid_credentials" }
   | { kind: "mfa_required" }
-  | { kind: "mfa_setup_required" }
+  | { kind: "mfa_setup_required"; userId: string }
   | { kind: "password_change_required" };
+
+export interface MfaEnrollmentResult {
+  recoveryCodes: string[];
+  session: { token: string; expiresAt: Date } | null;
+}
+
+const BASE32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+const MFA_SETUP_CHALLENGE_TTL_SECONDS = 600;
 
 interface StaffLoginRow extends QueryResultRow {
   id: string;
@@ -63,6 +71,92 @@ function mfaEncryptionKey(): Buffer {
     throw new Error("MFA_ENCRYPTION_KEY must be a canonical base64-encoded 32-byte key.");
   }
   return key;
+}
+
+function sessionPepper(): string {
+  const pepper = process.env.SESSION_TOKEN_PEPPER;
+  if (!pepper || Buffer.byteLength(pepper, "utf8") < 32) {
+    throw new Error("SESSION_TOKEN_PEPPER must contain at least 32 bytes.");
+  }
+  return pepper;
+}
+
+function hmacToken(payload: string): Buffer {
+  return createHmac("sha256", sessionPepper()).update(payload, "utf8").digest();
+}
+
+export function createMfaSetupChallenge(
+  userId: string,
+  nowMilliseconds = Date.now(),
+): { token: string; expiresAt: Date } {
+  const expiresAt = new Date(nowMilliseconds + MFA_SETUP_CHALLENGE_TTL_SECONDS * 1000);
+  const payload = `${userId}.${expiresAt.getTime()}.${randomBytes(16).toString("base64url")}`;
+  const encodedPayload = Buffer.from(payload, "utf8").toString("base64url");
+  const signature = hmacToken(`mfa-setup\0${encodedPayload}`).toString("base64url");
+  return { token: `${encodedPayload}.${signature}`, expiresAt };
+}
+
+export function verifyMfaSetupChallenge(
+  token: string,
+  nowMilliseconds = Date.now(),
+): string | null {
+  const [encodedPayload, suppliedSignature, extra] = token.split(".");
+  if (!encodedPayload || !suppliedSignature || extra !== undefined) {
+    return null;
+  }
+  let actualSignature: Buffer;
+  let payload: string;
+  try {
+    actualSignature = Buffer.from(suppliedSignature, "base64url");
+    payload = Buffer.from(encodedPayload, "base64url").toString("utf8");
+  } catch {
+    return null;
+  }
+  const expectedSignature = hmacToken(`mfa-setup\0${encodedPayload}`);
+  if (
+    actualSignature.length !== expectedSignature.length ||
+    !timingSafeEqual(actualSignature, expectedSignature)
+  ) {
+    return null;
+  }
+  const [userId, expiresAtText, nonce, extraPayload] = payload.split(".");
+  const expiresAt = Number(expiresAtText);
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      userId ?? "",
+    ) ||
+    !/^[A-Za-z0-9_-]{22}$/.test(nonce ?? "") ||
+    extraPayload !== undefined ||
+    !Number.isSafeInteger(expiresAt) ||
+    expiresAt <= nowMilliseconds
+  ) {
+    return null;
+  }
+  return userId;
+}
+
+function generateRecoveryCode(): string {
+  const bits = [...randomBytes(10)]
+    .map((byte) => byte.toString(2).padStart(8, "0"))
+    .join("");
+  const value = Array.from({ length: 16 }, (_, index) =>
+    BASE32_ALPHABET[Number.parseInt(bits.slice(index * 5, index * 5 + 5), 2)],
+  ).join("");
+  return value.match(/.{4}/g)?.join("-") ?? value;
+}
+
+function normalizeRecoveryCode(value: string): string | null {
+  const normalized = value.trim().toUpperCase();
+  return /^[A-Z2-7]{4}(?:-[A-Z2-7]{4}){3}$/.test(normalized)
+    ? normalized.replaceAll("-", "")
+    : null;
+}
+
+export function hashMfaRecoveryCode(value: string): Buffer | null {
+  const normalized = normalizeRecoveryCode(value);
+  return normalized
+    ? createHmac("sha256", sessionPepper()).update(normalized, "utf8").digest()
+    : null;
 }
 
 function decodeBase32(secret: string): Buffer {
@@ -168,6 +262,254 @@ export async function verifyStaffPassword(
   return argon2.verify(hash, password);
 }
 
+export async function getStaffMfaStatus(userId: string): Promise<{
+  enabled: boolean;
+  pending: boolean;
+  recoveryCodesRemaining: number;
+}> {
+  const client = await getPostgresPool("fco-admin").connect();
+  try {
+    await client.query("begin read only");
+    await client.query("set local role fco_app");
+    const result = await client.query<{
+      enabled: boolean;
+      pending: boolean;
+      recovery_codes_remaining: string;
+    }>(
+      `select exists (
+         select 1 from iam.mfa_factors
+          where user_id = $1 and kind = 'totp'
+            and confirmed_at is not null and disabled_at is null
+       ) as enabled,
+       exists (
+         select 1 from iam.mfa_factors
+          where user_id = $1 and kind = 'totp'
+            and confirmed_at is null and disabled_at is null
+       ) as pending,
+       count(*) filter (
+         where kind = 'recovery_code' and confirmed_at is not null and disabled_at is null
+       )::text as recovery_codes_remaining
+       from iam.mfa_factors where user_id = $1`,
+      [userId],
+    );
+    await client.query("commit");
+    const row = result.rows[0];
+    return {
+      enabled: row?.enabled ?? false,
+      pending: row?.pending ?? false,
+      recoveryCodesRemaining: Number(row?.recovery_codes_remaining ?? "0"),
+    };
+  } catch (error) {
+    try {
+      await client.query("rollback");
+    } catch (rollbackError) {
+      throw new AggregateError([error, rollbackError], "MFA status transaction rollback failed.");
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function beginStaffMfaEnrollment(
+  userId: string,
+): Promise<
+  | { kind: "started"; secret: string; otpauthUrl: string }
+  | { kind: "already_enabled" }
+  | { kind: "account_unavailable" }
+> {
+  const secret = [...randomBytes(20)]
+    .map((byte) => byte.toString(2).padStart(8, "0"))
+    .join("")
+    .match(/.{1,5}/g)
+    ?.map((group) => BASE32_ALPHABET[Number.parseInt(group.padEnd(5, "0"), 2)])
+    .join("") ?? "";
+  const encryptedSecret = encryptMfaSecret(secret);
+  const client = await getPostgresPool("fco-admin").connect();
+  try {
+    await client.query("begin");
+    await client.query("set local role fco_app");
+    const user = await client.query<{ email: string; status: string }>(
+      `select email::text as email, status
+         from iam.users where id = $1 and archived_at is null`,
+      [userId],
+    );
+    if (!user.rows[0] || user.rows[0].status !== "active") {
+      await client.query("rollback");
+      return { kind: "account_unavailable" };
+    }
+    const active = await client.query<{ id: string }>(
+      `select id from iam.mfa_factors
+        where user_id = $1 and kind = 'totp'
+          and confirmed_at is not null and disabled_at is null
+        limit 1`,
+      [userId],
+    );
+    if (active.rows[0]) {
+      await client.query("commit");
+      return { kind: "already_enabled" };
+    }
+    await client.query(
+      `update iam.mfa_factors set disabled_at = now()
+        where user_id = $1 and kind = 'totp'
+          and confirmed_at is null and disabled_at is null`,
+      [userId],
+    );
+    await client.query(
+      `insert into iam.mfa_factors (user_id, kind, secret_ciphertext, label)
+       values ($1, 'totp', $2, $3)`,
+      [userId, encryptedSecret, user.rows[0].email.slice(0, 254)],
+    );
+    await client.query("commit");
+    const label = encodeURIComponent(`FCO:${user.rows[0].email}`);
+    const issuer = encodeURIComponent("FCO");
+    return {
+      kind: "started",
+      secret,
+      otpauthUrl:
+        `otpauth://totp/${label}?secret=${secret}&issuer=${issuer}` +
+        "&algorithm=SHA1&digits=6&period=30",
+    };
+  } catch (error) {
+    try {
+      await client.query("rollback");
+    } catch (rollbackError) {
+      throw new AggregateError([error, rollbackError], "MFA enrollment transaction rollback failed.");
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function confirmStaffMfaEnrollment(input: {
+  userId: string;
+  code: string;
+  requestId: string;
+  issueSession: boolean;
+  ip: string | null;
+  userAgent: string | null;
+}): Promise<
+  | { kind: "invalid_code" }
+  | { kind: "not_pending" }
+  | {
+      kind: "confirmed";
+      recoveryCodes: string[];
+      session: { token: string; expiresAt: Date } | null;
+    }
+> {
+  const client = await getPostgresPool("fco-admin").connect();
+  try {
+    await client.query("begin");
+    await client.query("set local role fco_app");
+    const pending = await client.query<MfaFactorRow>(
+      `select id, secret_ciphertext, last_used_at
+         from iam.mfa_factors
+        where user_id = $1 and kind = 'totp'
+          and confirmed_at is null and disabled_at is null
+        order by created_at desc
+        limit 1
+        for update`,
+      [input.userId],
+    );
+    const factor = pending.rows[0];
+    if (!factor) {
+      await client.query("rollback");
+      return { kind: "not_pending" };
+    }
+    const matchedStep = matchingTotpStep(
+      decryptMfaSecret(factor.secret_ciphertext),
+      input.code,
+    );
+    const stepTimestamp =
+      matchedStep === null ? null : new Date(matchedStep * TOTP_STEP_SECONDS * 1000);
+    if (
+      stepTimestamp === null ||
+      (factor.last_used_at !== null && stepTimestamp <= factor.last_used_at)
+    ) {
+      await client.query("rollback");
+      return { kind: "invalid_code" };
+    }
+    const confirmed = await client.query<{ id: string }>(
+      `update iam.mfa_factors
+          set confirmed_at = now(), last_used_at = $2
+        where id = $1 and confirmed_at is null and disabled_at is null
+      returning id`,
+      [factor.id, stepTimestamp],
+    );
+    if (!confirmed.rows[0]) {
+      await client.query("rollback");
+      return { kind: "not_pending" };
+    }
+
+    await client.query(
+      `update iam.mfa_factors set disabled_at = now()
+        where user_id = $1 and kind = 'recovery_code' and disabled_at is null`,
+      [input.userId],
+    );
+    const recoveryCodes = Array.from({ length: 10 }, generateRecoveryCode);
+    for (const recoveryCode of recoveryCodes) {
+      const codeHash = hashMfaRecoveryCode(recoveryCode);
+      if (!codeHash) {
+        throw new Error("Generated MFA recovery code is invalid.");
+      }
+      await client.query(
+        `insert into iam.mfa_factors
+           (user_id, kind, secret_ciphertext, label, confirmed_at)
+         values ($1, 'recovery_code', $2, 'recovery', now())`,
+        [input.userId, codeHash],
+      );
+    }
+
+    let session: MfaEnrollmentResult["session"] = null;
+    if (input.issueSession) {
+      await client.query("select iam.register_login_success($1::uuid)", [input.userId]);
+      const token = randomBytes(32).toString("base64url");
+      const created = await client.query<{ sid: string }>(
+        `select iam.start_session($1::uuid, $2::bytea, $3::inet, $4::text) as sid`,
+        [
+          input.userId,
+          hashStaffSessionToken(token),
+          input.ip,
+          input.userAgent,
+        ],
+      );
+      const expiry = await client.query<ExpiryRow>(
+        "select expires_at from iam.sessions where id = $1::uuid",
+        [created.rows[0].sid],
+      );
+      session = { token, expiresAt: expiry.rows[0].expires_at };
+      await client.query(
+        `select sys.audit_write(
+           $1::uuid, 'auth.login', 'users', $1::uuid, null,
+           jsonb_build_object('session_id', $2::uuid, 'mfa_setup', true),
+           null, null, $3::text
+         )`,
+        [input.userId, created.rows[0].sid, input.requestId],
+      );
+    }
+    await client.query(
+      `select sys.audit_write(
+         $1::uuid, 'auth.mfa_enabled', 'mfa_factors', $2::uuid, null,
+         jsonb_build_object('recovery_codes_issued', $3::integer),
+         null, null, $4::text
+       )`,
+      [input.userId, factor.id, recoveryCodes.length, input.requestId],
+    );
+    await client.query("commit");
+    return { kind: "confirmed", recoveryCodes, session };
+  } catch (error) {
+    try {
+      await client.query("rollback");
+    } catch (rollbackError) {
+      throw new AggregateError([error, rollbackError], "MFA confirmation transaction rollback failed.");
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 function sqlState(error: unknown): string | undefined {
   if (
     typeof error === "object" &&
@@ -196,6 +538,7 @@ export async function loginStaff(input: {
   email: string;
   password: string;
   totp: string | null;
+  recoveryCode: string | null;
   userAgent: string | null;
   ip: string | null;
   requestId: string;
@@ -268,35 +611,64 @@ export async function loginStaff(input: {
       if (!factor) {
         await client.query("rollback");
         transactionOpen = false;
-        return { kind: "mfa_setup_required" };
+        return { kind: "mfa_setup_required", userId: account.id };
       }
 
-      const secret = decryptMfaSecret(factor.secret_ciphertext);
       const matchedStep =
         input.totp === null
           ? null
-          : matchingTotpStep(secret, input.totp);
+          : matchingTotpStep(decryptMfaSecret(factor.secret_ciphertext), input.totp);
       const stepTimestamp =
         matchedStep === null ? null : new Date(matchedStep * TOTP_STEP_SECONDS * 1000);
+      let authenticatedWithMfa = false;
       if (
-        stepTimestamp === null ||
-        (factor.last_used_at !== null && stepTimestamp <= factor.last_used_at)
+        stepTimestamp !== null &&
+        (factor.last_used_at === null || stepTimestamp > factor.last_used_at)
       ) {
-        await markLoginFailure(client, account.id);
-        await client.query("commit");
-        transactionOpen = false;
-        return { kind: "mfa_required" };
+        const marked = await client.query<{ id: string }>(
+          `update iam.mfa_factors
+              set last_used_at = $2
+            where id = $1
+              and (last_used_at is null or last_used_at < $2)
+          returning id`,
+          [factor.id, stepTimestamp],
+        );
+        authenticatedWithMfa = Boolean(marked.rows[0]);
       }
 
-      const marked = await client.query<{ id: string }>(
-        `update iam.mfa_factors
-            set last_used_at = $2
-          where id = $1
-            and (last_used_at is null or last_used_at < $2)
-        returning id`,
-        [factor.id, stepTimestamp],
-      );
-      if (!marked.rows[0]) {
+      if (!authenticatedWithMfa && input.recoveryCode !== null) {
+        const codeHash = hashMfaRecoveryCode(input.recoveryCode);
+        if (codeHash) {
+          const used = await client.query<{ id: string }>(
+            `update iam.mfa_factors
+                set disabled_at = now()
+              where id = (
+                select id from iam.mfa_factors
+                 where user_id = $1 and kind = 'recovery_code'
+                   and secret_ciphertext = $2
+                   and confirmed_at is not null and disabled_at is null
+                 order by created_at
+                 limit 1
+                 for update
+              )
+            returning id`,
+            [account.id, codeHash],
+          );
+          const recoveryFactor = used.rows[0];
+          if (recoveryFactor) {
+            authenticatedWithMfa = true;
+            await client.query(
+              `select sys.audit_write(
+                 $1::uuid, 'auth.mfa_recovery_used', 'mfa_factors', $2::uuid,
+                 null, jsonb_build_object('single_use', true), null, null, $3::text
+               )`,
+              [account.id, recoveryFactor.id, input.requestId],
+            );
+          }
+        }
+      }
+
+      if (!authenticatedWithMfa) {
         await markLoginFailure(client, account.id);
         await client.query("commit");
         transactionOpen = false;

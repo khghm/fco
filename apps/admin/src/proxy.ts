@@ -25,7 +25,10 @@ export async function proxy(request: NextRequest): Promise<Response> {
   if (
     pathname === "/api/v1/admin/auth/login" ||
     pathname === "/api/v1/admin/auth/logout" ||
-    pathname === "/login"
+    pathname === "/api/v1/admin/auth/mfa" ||
+    pathname.startsWith("/api/v1/admin/auth/mfa/") ||
+    pathname === "/login" ||
+    pathname === "/mfa/setup"
   ) {
     return NextResponse.next();
   }

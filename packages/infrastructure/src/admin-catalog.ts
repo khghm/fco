@@ -12,6 +12,37 @@ export interface AdminProduct {
   price_from_rial: number | null;
 }
 
+export interface AdminProductDetail {
+  id: string;
+  slug: string;
+  title: string;
+  description: string | null;
+  brand_id: string | null;
+  category_id: string | null;
+  attributes: Record<string, unknown>;
+  status: "draft" | "published" | "archived";
+  version: number;
+  updated_at: string | null;
+}
+
+export interface AdminVariantPrice {
+  id: string;
+  amount_rial: number;
+  compare_at_rial: number | null;
+  channel: string;
+  effective_from: string;
+  effective_to: string | null;
+  created_by: string | null;
+}
+
+export interface AdminVariant {
+  id: string;
+  sku: string;
+  barcode: string | null;
+  is_active: boolean;
+  prices: AdminVariantPrice[];
+}
+
 interface AdminProductRow extends QueryResultRow {
   id: string;
   slug: string;
@@ -22,6 +53,33 @@ interface AdminProductRow extends QueryResultRow {
   active_variants: string;
   price_from_rial: string | null;
   total_count: string;
+}
+
+interface AdminProductDetailRow extends QueryResultRow {
+  id: string;
+  slug: string;
+  title: string;
+  description: string | null;
+  brand_id: string | null;
+  category_id: string | null;
+  attributes: Record<string, unknown>;
+  status: AdminProductDetail["status"];
+  version: number;
+  updated_at: Date | null;
+}
+
+interface AdminVariantPriceRow extends QueryResultRow {
+  variant_id: string;
+  sku: string;
+  barcode: string | null;
+  is_active: boolean;
+  price_id: string | null;
+  amount_rial: string | null;
+  compare_at_rial: string | null;
+  channel: string | null;
+  effective_from: Date | null;
+  effective_to: Date | null;
+  created_by: string | null;
 }
 
 async function beginApplicationTransaction(): Promise<PoolClient> {
@@ -123,6 +181,137 @@ export async function listAdminProducts(
     throw new Error("Admin product list completed without a result.");
   }
   return response;
+}
+
+export async function getAdminProduct(
+  actorId: string,
+  productId: string,
+): Promise<AdminProductDetail | null> {
+  const client = await beginApplicationTransaction();
+  let product: AdminProductDetail | null = null;
+  await finishTransaction(client, async () => {
+    await client.query("select iam.authorize($1::uuid, 'catalog.product.read')", [actorId]);
+    const result = await client.query<AdminProductDetailRow>(
+      `select id, slug, title, description, brand_id, category_id,
+              attributes, status, version, updated_at
+         from cat.products
+        where id = $1 and status <> 'archived'`,
+      [productId],
+    );
+    const row = result.rows[0];
+    if (row) {
+      product = {
+        id: row.id,
+        slug: row.slug,
+        title: row.title,
+        description: row.description,
+        brand_id: row.brand_id,
+        category_id: row.category_id,
+        attributes: row.attributes,
+        status: row.status,
+        version: row.version,
+        updated_at: row.updated_at?.toISOString() ?? null,
+      };
+    }
+    await client.query("commit");
+  });
+  return product;
+}
+
+export async function listAdminVariants(
+  actorId: string,
+  productId: string,
+): Promise<AdminVariant[] | null> {
+  const client = await beginApplicationTransaction();
+  let variants: AdminVariant[] | null = null;
+  await finishTransaction(client, async () => {
+    await client.query("select iam.authorize($1::uuid, 'catalog.product.read')", [actorId]);
+    const product = await client.query<{ id: string }>(
+      "select id from cat.products where id = $1 and status <> 'archived'",
+      [productId],
+    );
+    if (!product.rows[0]) {
+      await client.query("commit");
+      variants = null;
+      return;
+    }
+
+    const result = await client.query<AdminVariantPriceRow>(
+      `select v.id as variant_id, v.sku, v.barcode, v.is_active,
+              pr.id as price_id, pr.amount_rial::text as amount_rial,
+              pr.compare_at_rial::text as compare_at_rial, pr.channel,
+              pr.effective_from, pr.effective_to, pr.created_by
+         from cat.variants v
+         left join pricing.prices pr on pr.variant_id = v.id
+        where v.product_id = $1 and v.archived_at is null
+        order by v.created_at, v.id, pr.effective_from desc, pr.id`,
+      [productId],
+    );
+    const byId = new Map<string, AdminVariant>();
+    for (const row of result.rows) {
+      let variant = byId.get(row.variant_id);
+      if (!variant) {
+        variant = {
+          id: row.variant_id,
+          sku: row.sku,
+          barcode: row.barcode,
+          is_active: row.is_active,
+          prices: [],
+        };
+        byId.set(row.variant_id, variant);
+      }
+      if (row.price_id && row.amount_rial !== null && row.channel && row.effective_from) {
+        variant.prices.push({
+          id: row.price_id,
+          amount_rial: safeInteger(row.amount_rial, "amount_rial"),
+          compare_at_rial:
+            row.compare_at_rial === null
+              ? null
+              : safeInteger(row.compare_at_rial, "compare_at_rial"),
+          channel: row.channel,
+          effective_from: row.effective_from.toISOString(),
+          effective_to: row.effective_to?.toISOString() ?? null,
+          created_by: row.created_by,
+        });
+      }
+    }
+    await client.query("commit");
+    variants = [...byId.values()];
+  });
+  return variants;
+}
+
+export async function createAdminVariant(input: {
+  actorId: string;
+  requestId: string;
+  productId: string;
+  sku: string;
+  barcode: string | null;
+  weightG: number | null;
+}): Promise<string> {
+  const client = await beginApplicationTransaction();
+  let variantId: string | undefined;
+  await finishTransaction(client, async () => {
+    const result = await client.query<{ variant_id: string }>(
+      `select cat.variant_create(
+         $1::uuid, $2::uuid, $3::text, $4::text, $5::integer, $6::text
+       ) as variant_id`,
+      [
+        input.actorId,
+        input.productId,
+        input.sku.toUpperCase(),
+        input.barcode,
+        input.weightG,
+        input.requestId,
+      ],
+    );
+    variantId = result.rows[0].variant_id;
+    await client.query("commit");
+  });
+  if (!variantId) {
+    throw new Error("Admin variant creation completed without an identifier.");
+  }
+  return variantId;
 }
 
 export async function createAdminProduct(input: {

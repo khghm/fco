@@ -19,6 +19,7 @@
 - تصویر سرویس اختیاری MinIO در Compose به `quay.io/minio/minio:RELEASE.2024-04-18T19-09-19Z` pin شد؛ اجرای E2E اصلی همچنان با S3rver است.
 - Migrationهای `0020`/`0021` برای قیمت نسخه‌دار/Audit و مجوز خواندن کاتالوگ پنل؛ آزمون SQL قیمت، زیرساخت نشست Argon2id/TOTP، middleware، ورود/خروج، API محصولات و ثبت قیمت اضافه شد.
 - صفحهٔ ورود حداقلی و job مستقل `Admin API HTTP E2E`؛ آزمون با PostgreSQL واقعی مسیر MFA، RBAC، نسخه‌بندی محصول/قیمت، Audit و ابطال نشست را اجرا می‌کند.
+- UI مدیریت محصول/قیمت و تاریخچهٔ قیمت، صفحات امنیت و راه‌اندازی MFA با QR/TOTP، کدهای بازیابی یک‌بارمصرف و rate limit ورود ادمین (۵ تلاش/۱۵ دقیقه) اضافه شدند؛ E2E مسیرهای HTTP و پاسخ صفحات را پوشش می‌دهد.
 
 ### Changed
 - وضعیت README و Project Master Control با پیشرفت BR-1/BR-2 هم‌راستا شد؛ قرارداد واقعی endpoint در `API_SPECIFICATION.md` ثبت شد و READMEهای scaffold با راهنمای مخزن جایگزین شدند.
@@ -36,13 +37,15 @@
 - هر ۱۵ سوئیت SQL زیرساخت روی دیتابیس تازهٔ جداگانه با Migrationهای `0001..0021` اجرا و سبز شدند؛ fixtureها در تراکنش خود سوئیت rollback شدند.
 - اجرای مستقل `npm test` بدون `FCO_E2E_DATABASE_URL` شامل ۴۳ پاس و ۴ skip آگاهانه است: هر چهار مورد در `apps/shop/src/app/api/v1/products/route.integration.test.ts` تست یکپارچگی PostgreSQL هستند و با `describe.skipIf(!databaseUrl)` فقط وقتی URL آزمون موجود نباشد skip می‌شوند؛ `scripts/catalog-e2e.sh` دیتابیس جدا می‌سازد، این متغیر را تنظیم می‌کند و هر ۴۷ تست را اجرا می‌کند.
 - lint، typecheck و build هر دو اپ سبز شدند. Build به متغیرهای پیکربندی S3 نمونه نیاز دارد؛ بدون آن‌ها `next.config` فروشگاه طبق قرارداد build را رد می‌کند.
-- CI job `Admin API HTTP E2E` به workflow اضافه شد؛ اجرای GitHub آن هنوز انجام نشده است. MinIO واقعی، UI عملیاتی، setup/recovery رابط MFA و rate limit پنل همچنان تأیید/پیاده نشده‌اند.
+- در checkpoint پیش از این تغییرات، job `Admin API HTTP E2E` به workflow اضافه شده بود اما هنوز اجرا نشده بود؛ UI عملیاتی، setup/recovery MFA و rate limit پنل نیز آن زمان باز بودند. وضعیت تازهٔ محلی این موارد در ثبت‌های بعدی همین بخش آمده است.
+- E2E تازهٔ Admin روی `fco_admin_e2e_20261127071614_1387` با ۲۱ Migration و Redis سبز شد: صفحات محصولات/امنیت/setup، جزئیات محصول، تنوع و تاریخچهٔ دو نسخهٔ قیمت، MFA enrollment/TOTP، recovery code (ورود اول `200` و مصرف دوباره `401`)، رد RBAC `403`, rate limit تلاش ششم `429`, Audit و logout تأیید شدند. این اجرا محلی است و GitHub Actions برای تغییرات فعلی هنوز اجرا نشده است.
+- `npm test`: ۴۸ پاس و ۴ skip آگاهانه؛ همان ۴ تست PostgreSQL کاتالوگ بدون `FCO_E2E_DATABASE_URL` غیرفعال‌اند و E2Eهای مستقل دیتابیس را اجرا می‌کنند. typecheck، lint و build هر دو اپ سبز شدند؛ build فروشگاه با مقادیر نمونهٔ S3 لازم بود.
 
 ### Limitation
-- دیتابیس توسعهٔ `fco` هنوز از Migrationهای BR-2 استفاده نمی‌کند؛ E2Eها دیتابیس‌های جدا و نگه‌داشته‌شده دارند. پنل مدیریت هنوز UI عملیاتی و rate limit مختص خود را ندارد.
+- دیتابیس توسعهٔ `fco` هنوز از Migrationهای BR-2 استفاده نمی‌کند؛ E2Eها دیتابیس‌های جدا و نگه‌داشته‌شده دارند. اتصال MinIO واقعی به‌علت رد دسترسی image از Quay/Docker Hub تأیید نشده؛ آزمون رسانه همچنان با S3rver است. rate limit اختصاصی فقط برای login ادمین پیاده شده و در قطعی Redis به fallback حافظه‌ای هر نمونه تنزل می‌کند. workflow تازهٔ پنل و گردش مجاز تعویض عامل MFA پس از گم‌شدن دستگاه هنوز بازند.
 
 ### Planned
-- ادامهٔ BR-2: تأیید MinIO واقعی، صفحهٔ دسته و پنل محصول/قیمت؛ سپس BR-3 تا BR-5 طبق گیت‌های پذیرش.
+- ادامهٔ BR-2: تأیید CI پس از push، اتصال MinIO واقعی و workflow امن تعویض/ابطال عامل MFA؛ سپس صفحهٔ دسته و BR-3 تا BR-5 طبق گیت‌های پذیرش.
 
 ---
 

@@ -13,6 +13,7 @@ const adminId = "92000000-0000-4000-8000-000000000001";
 const operatorId = "92000000-0000-4000-8000-000000000002";
 const brandId = "92000000-0000-4000-8000-000000000003";
 const categoryId = "92000000-0000-4000-8000-000000000004";
+const setupStaffId = "92000000-0000-4000-8000-000000000005";
 const totpSecret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
 const client = new Client({ connectionString: databaseUrl });
 
@@ -45,19 +46,24 @@ try {
     parallelism: 1,
   });
   const email = process.env.FCO_E2E_STAFF_EMAIL ?? "admin-e2e@fco.invalid";
+  const operatorEmail = process.env.FCO_E2E_OPERATOR_EMAIL ?? "operator-e2e@fco.invalid";
+  const setupStaffEmail = process.env.FCO_E2E_SETUP_EMAIL ?? "mfa-setup-e2e@fco.invalid";
   await client.query(
     `insert into iam.users (id, mobile, email, full_name, password_hash, status)
      values
-       ($1::uuid, '09129999001', $3::citext, 'E2E مدیر فروش', $4, 'active'),
-       ($2::uuid, '09129999002', 'operator-e2e@fco.invalid', 'E2E اپراتور', $4, 'active')`,
-    [adminId, operatorId, email, passwordHash],
+       ($1::uuid, '09129999001', $4::citext, 'E2E مدیر فروش', $7, 'active'),
+       ($2::uuid, '09129999002', $5::citext, 'E2E اپراتور', $7, 'active'),
+       ($3::uuid, '09129999003', $6::citext, 'E2E مدیر نیازمند MFA', $7, 'active')`,
+    [adminId, operatorId, setupStaffId, email, operatorEmail, setupStaffEmail, passwordHash],
   );
   await client.query(
     `insert into iam.user_roles (user_id, role_id)
      select $1::uuid, id from iam.roles where key = 'R-SALES'
      union all
-     select $2::uuid, id from iam.roles where key = 'R-OP'`,
-    [adminId, operatorId],
+     select $2::uuid, id from iam.roles where key = 'R-OP'
+     union all
+     select $3::uuid, id from iam.roles where key = 'R-SALES'`,
+    [adminId, operatorId, setupStaffId],
   );
   await client.query(
     `insert into iam.mfa_factors (user_id, kind, secret_ciphertext, confirmed_at)
@@ -96,7 +102,11 @@ try {
     JSON.stringify({
       adminId,
       operatorId,
+      setupStaffId,
       email,
+      operatorEmail,
+      setupStaffEmail,
+      productId: product.rows[0].id,
       variantId: variant.rows[0].id,
     }),
   );
